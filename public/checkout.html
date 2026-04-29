@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Access — Legend Speak</title>
-    <script src="https://js.stripe.com/v3/"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=EB+Garamond&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -78,6 +77,28 @@
         .btn:hover { background: #b08d4a; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         #error-message { color: #be123c; text-align: center; margin-top: 15px; font-size: 15px; }
+.fake-payment-fields label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--blue-deep);
+    font-size: 14px;
+}
+
+.fake-payment-fields input,
+.fake-payment-fields select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    font-size: 15px;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
         .back-link { 
             display: block; 
             text-align: center; 
@@ -97,76 +118,85 @@
         <h2>Secure Archive Access</h2>
         
         <form id="payment-form">
-            <div id="payment-element">
-                </div>
-            <button id="submit" class="btn">Confirm Access</button>
-            <div id="error-message"></div>
+            <div class="fake-payment-fields">
+  <label>Card Number</label>
+  <input type="text" placeholder="1234 1234 1234 1234" inputmode="numeric">
+
+  <div class="row">
+    <div>
+      <label>Expiry Date</label>
+      <input type="text" placeholder="MM / YY" inputmode="numeric">
+    </div>
+    <div>
+      <label>CVC</label>
+      <input type="text" placeholder="CVC" inputmode="numeric">
+    </div>
+  </div>
+
+  <label>Name on Card</label>
+  <input type="text" placeholder="Full name">
+
+  <label>Billing Country</label>
+  <select>
+    <option>United Kingdom</option>
+    <option>United States</option>
+    <option>Canada</option>
+    <option>Australia</option>
+    <option>European Union</option>
+  </select>
+
+  <div style="margin-top:10px;margin-bottom:15px;">
+    <img src="https://static.vecteezy.com/system/resources/previews/020/975/572/original/visa-logo-visa-icon-transparent-free-png.png"
+         alt="Visa"
+         style="height:28px;margin-right:15px;vertical-align:middle;">
+
+    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg"
+         alt="MasterCard"
+         style="height:28px;vertical-align:middle;">
+  </div>
+</div>
+
+<button id="submit" class="btn">Confirm Access</button>
+<div id="error-message"></div>
         </form>
 
         <a href="/pricing.html" class="back-link">Return to Tiers</a>
     </div>
 
     <script>
-        const stripe = Stripe("pk_live_51TEADzFzC4x1DZ5a8x146yrAFj2h0plgYC580mFxz0KpOGaMyIOn6O3FJKqvXoJfn2dnFSoYtW23sguR7PcyKzID00lHatt76H"); // Replace with your actual key
-        const params = new URLSearchParams(window.location.search);
-        const plan = params.get('plan');
-        const token = localStorage.getItem("jwt");
+const params = new URLSearchParams(window.location.search);
+const plan = params.get('plan');
+const token = localStorage.getItem("jwt");
 
-        let elements;
+const titles = {
+  god: "Historical Tier",
+  all: "Legendary Tier",
+  lifetime: "Lifetime Access"
+};
 
-        async function initialize() {
-            const response = await fetch("/api/create-payment-intent", {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer " + token 
-                },
-                body: JSON.stringify({ 
-                    plan: plan,
-                   
-                }),
-            });
-            
-            const data = await response.json();
-            if (data.error) {
-                document.getElementById('error-message').innerText = data.error;
-                return;
-            }
+const prices = {
+  god: "$29.95",
+  all: "$35.95",
+  lifetime: "$49.95"
+};
 
-            const { clientSecret } = data;
-            elements = stripe.elements({ clientSecret });
-            const paymentElement = elements.create("payment");
-            paymentElement.mount("#payment-element");
-        }
+if (plan && titles[plan]) {
+  document.querySelector("h2").innerText = titles[plan] + " — " + prices[plan];
+}
 
-        document.querySelector("#payment-form").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const submitBtn = document.querySelector("#submit");
-            submitBtn.disabled = true;
+document.querySelector("#payment-form").addEventListener("submit", function(e) {
+  e.preventDefault();
+  document.getElementById("error-message").innerText =
+    "Demo checkout only — payment processing will be activated soon.";
+});
 
-            const { error } = await stripe.confirmPayment({
-                elements,
-                confirmParams: {
-                    // Redirect back to home with a success flag
-                    return_url: window.location.origin + "/?payment=success",
-                },
-            });
-
-            if (error) {
-                document.querySelector("#error-message").textContent = error.message;
-                submitBtn.disabled = false;
-            }
-        });
-
-        if (!token) {
-            alert("Please sign in to access the archives.");
-            window.location.href = "/";
-        } else if (!plan) {
-            alert("No tier selected.");
-            window.location.href = "/pricing.html";
-        } else {
-            initialize();
-        }
-    </script>
+if (!token) {
+  alert("Please sign in to access the archives.");
+  window.location.href = "/";
+} else if (!plan) {
+  alert("No tier selected.");
+  window.location.href = "/pricing.html";
+}
+</script>
 </body>
 </html>
