@@ -11,6 +11,7 @@
             --blue-deep: #1e293b;
             --bg-archive: #f4f1ea;
             --text-main: #33302c;
+            --text-muted: #8a8276;
         }
         body { 
             background: var(--bg-archive); 
@@ -28,175 +29,116 @@
             border-radius: 12px; 
             box-shadow: 0 15px 50px rgba(0,0,0,0.08); 
             width: 100%; 
-            max-width: 450px; 
-            border: 1px solid rgba(197,160,89,0.25); 
+            max-width: 500px;
+            border: 1px solid rgba(197,160,89,0.2);
         }
-        .logo { 
-            text-align: center; 
-            color: var(--gold-legend); 
-            font-family: 'Cinzel'; 
-            font-size: 24px; 
-            margin-bottom: 10px; 
-            letter-spacing: 2px;
-        }
-        .logo-mark {
-            width: 50px;
-            height: 50px;
-            background: var(--blue-deep);
-            border: 2px solid var(--gold-legend);
-            border-radius: 50%;
-            display: grid;
-            place-items: center;
-            margin: 0 auto 15px;
-            color: var(--gold-legend);
-            font-weight: bold;
-        }
-        h2 { 
-            text-align: center; 
-            font-family: 'Cinzel'; 
-            font-size: 20px; 
-            color: var(--blue-deep); 
-            margin-bottom: 30px; 
-            border-bottom: 1px solid #eee;
-            padding-bottom: 15px;
-        }
-        #payment-element { margin-bottom: 24px; }
-        .btn {
-            background: var(--gold-legend);
-            color: white;
-            font-family: 'Cinzel';
-            width: 100%;
-            padding: 15px;
-            border: none;
-            border-radius: 6px;
-            font-size: 14px;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-        .btn:hover { background: #b08d4a; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        #error-message { color: #be123c; text-align: center; margin-top: 15px; font-size: 15px; }
-.fake-payment-fields label {
-    display: block;
-    margin-bottom: 6px;
-    color: var(--blue-deep);
-    font-size: 14px;
-}
+        .logo { text-align: center; color: var(--gold-legend); font-family: 'Cinzel'; font-size: 28px; margin-bottom: 10px; }
+        
+        .plan-summary { background: #fdfaf5; padding: 20px; border-radius: 10px; margin-bottom: 25px; text-align: center; border: 1px dashed var(--gold-legend); }
+        .plan-name { font-family: 'Cinzel'; color: var(--blue-deep); font-size: 20px; margin-bottom: 5px; }
+        .plan-price { font-size: 28px; font-weight: bold; color: var(--gold-legend); }
+        
+        .disclosure-box { font-size: 13px; color: var(--text-muted); background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; line-height: 1.5; border: 1px solid #eee; }
+        .disclosure-box strong { color: var(--blue-deep); }
 
-.fake-payment-fields input,
-.fake-payment-fields select {
-    width: 100%;
-    padding: 12px;
-    margin-bottom: 12px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    font-size: 15px;
-}
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: var(--blue-deep); font-size: 14px; }
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+        
+        .checkbox-group { margin: 25px 0; }
+        .checkbox-item { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 15px; cursor: pointer; }
+        .checkbox-item input { width: auto; margin-top: 4px; cursor: pointer; flex-shrink: 0; }
+        .checkbox-text { font-size: 13px; color: var(--text-main); line-height: 1.4; }
+        .checkbox-text a { color: var(--gold-legend); text-decoration: underline; font-weight: bold; }
 
-.row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-        .back-link { 
-            display: block; 
-            text-align: center; 
-            margin-top: 25px; 
-            color: #64748b; 
-            text-decoration: none; 
-            font-size: 14px; 
-            font-family: 'Cinzel';
-        }
-        .back-link:hover { color: var(--gold-legend); }
+        .pay-btn { background: var(--blue-deep); color: white; width: 100%; padding: 16px; border: none; border-radius: 8px; font-family: 'Cinzel'; font-size: 16px; cursor: pointer; transition: 0.3s; margin-top: 10px; font-weight: bold; }
+        .pay-btn:hover { background: #1a2530; transform: translateY(-2px); }
+        
+        .secure-badge { text-align: center; font-size: 12px; color: #4caf50; margin-top: 10px; font-weight: bold; text-transform: uppercase; }
+
+        .footer-links { text-align: center; margin-top: 30px; font-size: 13px; color: var(--text-muted); border-top: 1px solid #eee; padding-top: 20px; }
+        .footer-links a { color: var(--gold-legend); margin: 0 10px; text-decoration: none; font-weight: bold; }
+        .footer-links a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <div class="checkout-box">
-        <div class="logo-mark">L</div>
         <div class="logo">Legend Speak</div>
-        <h2>Secure Archive Access</h2>
         
+        <div class="plan-summary">
+            <div class="plan-name" id="display-plan">Access Plan</div>
+            <div class="plan-price" id="display-price">£--.--</div>
+        </div>
+
+        <div class="disclosure-box">
+            <strong>Payment Disclosure:</strong> We only accept <b>one-time payments</b> verified by 3D Secure. We have <b>no subscriptions</b> and you will not be charged again.<br><br>
+            <strong>Billing Descriptor:</strong> This charge will appear on your bank statement as: <strong>SPEAKTOHEAVEN</strong>.
+        </div>
+
         <form id="payment-form">
-            <div class="fake-payment-fields">
-  <label>Card Number</label>
-  <input type="text" placeholder="1234 1234 1234 1234" inputmode="numeric">
+            <label>Cardholder Name</label>
+            <input type="text" placeholder="Full name as it appears on card" required>
+            
+            <label>Card Information</label>
+            <div id="card-element" style="padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; background: white;">
+                <input type="text" placeholder="Card Number    MM/YY    CVC" style="border:none; margin:0; padding:0; width:100%;">
+            </div>
 
-  <div class="row">
-    <div>
-      <label>Expiry Date</label>
-      <input type="text" placeholder="MM / YY" inputmode="numeric">
-    </div>
-    <div>
-      <label>CVC</label>
-      <input type="text" placeholder="CVC" inputmode="numeric">
-    </div>
-  </div>
+            <div class="checkbox-group">
+                <label class="checkbox-item">
+                    <input type="checkbox" required>
+                    <span class="checkbox-text">
+                        I acknowledge that Legend Speak is an AI-generated historical-themed digital service for reflection/education and does not facilitate real communication with historical or deceased persons.
+                    </span>
+                </label>
 
-  <label>Name on Card</label>
-  <input type="text" placeholder="Full name">
+                <label class="checkbox-item">
+                    <input type="checkbox" required>
+                    <span class="checkbox-text">
+                        I agree to the <a href="/terms-and-conditions.html" target="_blank">Terms & Conditions</a> and <a href="/privacy-policy.html" target="_blank">Privacy Policy</a>.
+                    </span>
+                </label>
 
-  <label>Billing Country</label>
-  <select>
-    <option>United Kingdom</option>
-    <option>United States</option>
-    <option>Canada</option>
-    <option>Australia</option>
-    <option>European Union</option>
-  </select>
+                <label class="checkbox-item">
+                    <input type="checkbox" required>
+                    <span class="checkbox-text">
+                        I consent to immediate digital access and acknowledge that I waive my 14-day cancellation period once the service has commenced.
+                    </span>
+                </label>
+            </div>
 
-  <div style="margin-top:10px;margin-bottom:15px;">
-    <img src="https://static.vecteezy.com/system/resources/previews/020/975/572/original/visa-logo-visa-icon-transparent-free-png.png"
-         alt="Visa"
-         style="height:28px;margin-right:15px;vertical-align:middle;">
-
-    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg"
-         alt="MasterCard"
-         style="height:28px;vertical-align:middle;">
-  </div>
-</div>
-
-<button id="submit" class="btn">Confirm Access</button>
-<div id="error-message"></div>
+            <button id="submit" class="pay-btn">Complete One-Time Payment</button>
+            <div class="secure-badge">🛡️ Secured by 3D Secure Authentication</div>
         </form>
 
-        <a href="/pricing.html" class="back-link">Return to Tiers</a>
+        <div class="footer-links">
+            <a href="/refund-policy.html">Refund Policy</a> | 
+            <a href="/contact.html">Support Contact</a>
+        </div>
+        
+        <div style="text-align:center; margin-top: 20px; opacity: 0.7;">
+            <img src="https://static.vecteezy.com/system/resources/previews/020/975/572/original/visa-logo-visa-icon-transparent-free-png.png" alt="Visa" style="height:22px; margin-right:15px; vertical-align: middle;">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="MasterCard" style="height:22px; vertical-align: middle;">
+        </div>
     </div>
 
     <script>
-const params = new URLSearchParams(window.location.search);
-const plan = params.get('plan');
-const token = localStorage.getItem("jwt");
+        const params = new URLSearchParams(window.location.search);
+        const plan = params.get('plan') || 'god';
 
-const titles = {
-  god: "Historical Tier",
-  all: "Legendary Tier",
-  lifetime: "Lifetime Access"
-};
+        const titles = {
+            god: "Historical Tier",
+            all: "Legendary Tier",
+            lifetime: "Lifetime Access"
+        };
 
-const prices = {
-  god: "£29.95",
-  all: "£35.95",
-  lifetime: "£49.95"
-};
+        const prices = {
+            god: "£29.95",
+            all: "£35.95",
+            lifetime: "£49.95"
+        };
 
-if (plan && titles[plan]) {
-  document.querySelector("h2").innerText = titles[plan] + " — " + prices[plan];
-}
-
-document.querySelector("#payment-form").addEventListener("submit", function(e) {
-  e.preventDefault();
-  document.getElementById("error-message").innerText =
-    "Demo checkout only — payment processing will be activated soon.";
-});
-
-if (!token) {
-  alert("Please sign in to access the archives.");
-  window.location.href = "/";
-} else if (!plan) {
-  alert("No tier selected.");
-  window.location.href = "/pricing.html";
-}
-</script>
+        document.getElementById('display-plan').innerText = titles[plan] || "Access Plan";
+        document.getElementById('display-price').innerText = prices[plan] || "£--.--";
+    </script>
 </body>
 </html>
