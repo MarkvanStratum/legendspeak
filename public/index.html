@@ -71,6 +71,39 @@
       border-top: 1px solid var(--border-accent);
     }
     footer a { color: var(--text-muted); text-decoration: none; margin: 0 10px; }
+  
+    /* GDPR COOKIE BANNER STYLES */
+    #cookieBanner {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: #ffffff;
+      border-top: 2px solid var(--gold-legend);
+      box-shadow: 0 -10px 30px rgba(0,0,0,0.1);
+      padding: 20px;
+      display: none; 
+      z-index: 10000;
+    }
+    .cookie-content {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .cookie-text { font-size: 15px; color: var(--text-main); line-height: 1.4; }
+    .cookie-text a { color: var(--gold-legend); text-decoration: underline; }
+    .cookie-btns { display: flex; gap: 10px; }
+    .c-btn { padding: 10px 20px; font-family: "Cinzel", serif; font-size: 12px; cursor: pointer; border-radius: 4px; border: 1px solid var(--gold-legend); text-transform: uppercase; letter-spacing: 1px; }
+    .c-accept { background: var(--gold-legend); color: white; border: none; }
+    .c-decline { background: transparent; color: var(--gold-legend); }
+
+    @media (max-width: 768px) {
+      .cookie-content { flex-direction: column; text-align: center; }
+    }
+
   </style>
 </head>
 
@@ -131,5 +164,38 @@
       <div>&copy; 2026 RIDGWELL SERVICES LIMITED. Registered in England and Wales No. 16277582.</div>
     </footer>
   </div>
+
+  <!-- GDPR COOKIE BANNER -->
+  <div id="cookieBanner">
+    <div class="cookie-content">
+      <div class="cookie-text">
+        We use cookies to ensure the archive functions securely and to understand how seekers interact with history. 
+        By continuing your journey, you agree to our <a href="/terms-and-conditions.html">Terms & Cookie Policy</a>.
+      </div>
+      <div class="cookie-btns">
+        <button class="c-btn c-decline" onclick="closeBanner()">Decline</button>
+        <button class="c-btn c-accept" onclick="acceptCookies()">Accept</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+
+    window.addEventListener('load', () => {
+      if (!localStorage.getItem('archive_cookies_accepted')) {
+        document.getElementById('cookieBanner').style.display = 'block';
+      }
+    });
+
+    function acceptCookies() {
+      localStorage.setItem('archive_cookies_accepted', 'true');
+      closeBanner();
+    }
+
+    function closeBanner() {
+      document.getElementById('cookieBanner').style.display = 'none';
+    }
+
+  </script>
 </body>
 </html>
