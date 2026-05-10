@@ -18,47 +18,69 @@
       --text-muted: #8a8276;
       --border-accent: rgba(197, 160, 89, 0.25);
       --radius: 12px;
+      --archive-shadow: 0 15px 50px rgba(0,0,0,0.06);
     }
 
     * { box-sizing: border-box; }
-    body { margin: 0; color: var(--text-main); background-color: var(--bg-archive); font-family: "EB Garamond", serif; font-size: 19px; line-height: 1.7; }
+    body {
+      margin: 0; color: var(--text-main); background-color: var(--bg-archive);
+      font-family: "EB Garamond", serif; font-size: 19px; line-height: 1.7;
+    }
+
     .wrap { max-width: 1200px; margin: 0 auto; padding: 0px 20px 80px; }
     body.logged-in .wrap { max-width: none; width: 100%; padding: 0 10px 40px; }
 
-    header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--border-accent); margin-bottom: 40px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 0; border-bottom: 1px solid var(--border-accent); margin-bottom: 40px;
+    }
     .brand { display: flex; align-items: center; gap: 15px; }
     .logo { width: 50px; height: 50px; background: white; border: 1.5px solid var(--gold-legend); border-radius: 50%; display: grid; place-items: center; font-family: "Cinzel", serif; color: var(--gold-legend); font-size: 22px; }
     
     .grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 40px; }
     body.logged-in .grid { grid-template-columns: 1fr; gap: 0; }
 
-    .card { background: var(--marble); border: 1px solid var(--border-accent); border-radius: var(--radius); box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow: hidden; }
+    .card { background: var(--marble); border: 1px solid var(--border-accent); border-radius: var(--radius); box-shadow: var(--archive-shadow); overflow: hidden; }
+    
     .tabs { display: flex; background: #f8f8f8; cursor: pointer; border-bottom: 1px solid var(--border-accent); }
     .tab { flex: 1; padding: 15px; text-align: center; font-family: "Cinzel", serif; color: var(--text-muted); font-size: 14px; }
     .tab.active { background: white; color: var(--gold-legend); border-top: 2px solid var(--gold-legend); }
 
-    /* The Text Box - We removed all pointer-events:none logic */
-    input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; font-size: 16px; color: #000; background: #fff; }
-    textarea { height: 60px; resize: none; }
-    textarea:disabled { background: #eee; cursor: not-allowed; }
-
+    input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; font-size: 16px; }
     .btn { padding: 14px 28px; border-radius: 6px; font-family: "Cinzel", serif; cursor: pointer; border: 1px solid var(--gold-legend); background: transparent; color: var(--gold-legend); text-transform: uppercase; letter-spacing: 1px; width: 100%; }
     .btn.primary { background: var(--gold-legend); color: white; border: none; }
 
-    /* The Modal - Simplified Z-index and visibility */
-    #limitModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 41, 59, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
-    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+    /* Modal Styling */
+    #limitModal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(30, 41, 59, 0.85); display: none; align-items: center; justify-content: center; z-index: 20000;
+    }
+    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); }
 
-    .chat-shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 650px; }
+    .chat-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); height: 650px; }
     body.logged-in .chat-shell { height: calc(100vh - 120px); }
-    .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 20px; overflow-y: auto; }
-    .pitem { padding: 15px; margin-bottom: 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; }
-    .pitem.active { border-color: var(--gold-legend); background: #fffdf9; }
+    .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 15px; overflow-y: auto; }
+    
+    /* Sidebar Item with Image */
+    .pitem { 
+        display: flex; align-items: center; gap: 12px; padding: 10px; margin-bottom: 10px; 
+        border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; 
+        font-family: "Cinzel", serif; font-size: 14px;
+    }
+    .pitem:hover { border-color: var(--gold-legend); }
+    .pitem.active { border-color: var(--gold-legend); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .pitem img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold-legend); }
+
     .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; background: #fff; }
     .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; }
-    .bubble.them { background: #f8f6f2; align-self: flex-start; }
-    .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; }
+    .bubble.them { background: #f8f6f2; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #eee; }
+    .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+    
+    #chatHeaderImg { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 1.5px solid var(--gold-legend); display: none; }
+    
     .hide { display: none !important; }
+
+    footer { margin-top: 40px; padding: 20px; text-align: center; font-size: 14px; border-top: 1px solid var(--border-accent); }
   </style>
 </head>
 
@@ -75,13 +97,15 @@
           <div class="tabs"><div class="tab active" id="tabLogin">Sign In</div><div class="tab" id="tabRegister">New Scholar</div></div>
           <div style="padding: 30px;">
             <div id="loginPane"><input id="loginEmail" type="email" placeholder="Email"><input id="loginPassword" type="password" placeholder="Cipher"><button class="btn primary" id="loginBtn">Access Archives</button></div>
-            <div id="registerPane" class="hide"><input id="regEmail" type="email" placeholder="Email"><input id="regPassword" type="password" placeholder="Create Cipher"><button class="btn primary" id="registerBtn">Join Archive</button></div>
+            <div id="registerPane" class="hide"><input id="regEmail" type="email" placeholder="Email"><input id="regPassword" type="password" placeholder="Cipher"><button class="btn primary" id="registerBtn">Join Archive</button></div>
           </div>
         </div>
+
         <div class="card" style="padding: 30px;">
           <h4 style="font-family: Cinzel; color: var(--gold-legend);">Sacred Offerings</h4>
-          <button class="btn" onclick="buyPlan()">Scholar Access (£29.95)</button>
-          <button class="btn primary" onclick="buyPlan()" style="margin-top:10px;">Eternal Archive (£49.95)</button>
+          <button class="btn" onclick="buyPlan()" style="margin-bottom: 10px;">Scholar Access (£29.95)</button>
+          <button class="btn" onclick="buyPlan()" style="margin-bottom: 10px;">Legendary Access (£35.95)</button>
+          <button class="btn primary" onclick="buyPlan()">Eternal Archive (£49.95)</button>
         </div>
       </div>
 
@@ -89,10 +113,13 @@
         <div class="chat-shell">
           <div class="sidebar" id="profiles"></div>
           <div style="display: flex; flex-direction: column; height: 100%;">
-            <div style="padding: 20px; border-bottom: 1px solid var(--border-accent); font-family: Cinzel;" id="chatTitle">Select a Figure</div>
+            <div style="padding: 15px 20px; border-bottom: 1px solid var(--border-accent); display: flex; align-items: center; gap: 15px;">
+              <img id="chatHeaderImg" src="" alt="">
+              <div id="chatTitle" style="font-family: Cinzel; color: var(--blue-deep);">Select a Figure</div>
+            </div>
             <div class="chat-log" id="chatLog"></div>
             <div style="padding: 20px; border-top: 1px solid var(--border-accent); display: flex; gap: 12px; background: white;">
-              <textarea id="chatInput" placeholder="Your question..." disabled></textarea>
+              <textarea id="chatInput" placeholder="Your question..." disabled style="flex:1; height: 50px; resize: none;"></textarea>
               <button class="btn primary" id="sendBtn" disabled style="width: auto;">Send</button>
             </div>
           </div>
@@ -104,9 +131,9 @@
   <div id="limitModal">
     <div class="modal-content">
       <h2 style="font-family: Cinzel; color: var(--blue-deep);">Limit Reached</h2>
-      <p>Your free historical consultations are complete. Please acquire an offering to continue.</p>
-      <button class="btn primary" onclick="buyPlan()">Acquire Full Access</button>
-      <button class="btn" style="margin-top:10px;" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
+      <p>Your free historical consultations are complete. Please choose an offering to continue your dialogue.</p>
+      <button class="btn primary" onclick="buyPlan()" style="margin-bottom:10px;">Unlock Full Access</button>
+      <button class="btn" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
     </div>
   </div>
 
@@ -115,6 +142,15 @@
     let selectedId = null;
 
     function getToken() { return localStorage.getItem("jwt"); }
+
+    function buyPlan() {
+      if (!getToken()) {
+        alert("Please register a scholar account first.");
+        $("tabRegister").click();
+      } else {
+        window.location.href = `/pricing.html`;
+      }
+    }
 
     async function sendMessage() {
       const text = $("chatInput").value.trim();
@@ -132,8 +168,8 @@
       if (res.status === 403) {
         const data = await res.json();
         if (data.error === "LIMIT_REACHED") {
-            $("limitModal").style.display = "flex"; 
-            return; 
+          $("limitModal").style.display = "flex";
+          return;
         }
       }
 
@@ -154,52 +190,59 @@
       const profiles = await res.json();
       profiles.forEach(p => {
         const div = document.createElement("div");
-        div.className = "pitem"; div.innerText = p.name;
-        div.onclick = function() {
+        div.className = "pitem";
+        div.innerHTML = `<img src="${p.image}" alt="${p.name}"> <span>${p.name}</span>`;
+        div.onclick = () => {
           document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
           div.classList.add("active");
           selectedId = p.id;
           $("chatTitle").innerText = p.name;
-          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What is on your mind?</div>`;
-          
-          // UNLOCK LOGIC - Absolute Force
+          $("chatHeaderImg").src = p.image;
+          $("chatHeaderImg").style.display = "block";
+          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What brings you to the archive today?</div>`;
           if (getToken()) { 
-              const input = $("chatInput");
-              const btn = $("sendBtn");
-              input.disabled = false;
-              btn.disabled = false;
-              input.removeAttribute("disabled");
-              btn.removeAttribute("disabled");
-              input.focus();
-          } else {
-              alert("Please verify your identity (Sign In) first.");
+              $("chatInput").disabled = false; 
+              $("sendBtn").disabled = false; 
+              $("chatInput").focus();
           }
         };
         $("profiles").appendChild(div);
       });
     }
 
-    document.getElementById("logoutBtn").onclick = function() { localStorage.removeItem("jwt"); window.location.href = "/"; };
     $("sendBtn").onclick = sendMessage;
     $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
     $("loginBtn").onclick = async () => {
-      const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("loginEmail").value, password: $("loginPassword").value }) });
+      const res = await fetch("/api/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: $("loginEmail").value, password: $("loginPassword").value })
+      });
       const data = await res.json();
       if (res.ok) { localStorage.setItem("jwt", data.token); location.reload(); } else alert(data.error);
     };
 
     $("registerBtn").onclick = async () => {
-      const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value }) });
-      if (res.ok) { alert("Created. Please sign in."); $("tabLogin").click(); }
+      const res = await fetch("/api/register", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value })
+      });
+      if (res.ok) { alert("Scholar account created. Please sign in."); $("tabLogin").click(); }
     };
 
     $("tabLogin").onclick = () => { $("tabLogin").className="tab active"; $("tabRegister").className="tab"; $("loginPane").classList.remove("hide"); $("registerPane").classList.add("hide"); };
     $("tabRegister").onclick = () => { $("tabRegister").className="tab active"; $("tabLogin").className="tab"; $("registerPane").classList.remove("hide"); $("loginPane").classList.add("hide"); };
 
-    function buyPlan() { window.location.href = "/pricing.html"; }
+    document.getElementById("logoutBtn").onclick = function() {
+        localStorage.removeItem("jwt");
+        window.location.href = "/";
+    };
 
-    if (getToken()) { document.body.classList.add("logged-in"); $("authSection").classList.add("hide"); $("logoutBtn").style.display = "block"; }
+    if (getToken()) { 
+        document.body.classList.add("logged-in"); 
+        $("authSection").classList.add("hide"); 
+        $("logoutBtn").style.display = "block"; 
+    }
     loadProfiles();
   </script>
 </body>
