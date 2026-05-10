@@ -37,26 +37,27 @@
     .tab { flex: 1; padding: 15px; text-align: center; font-family: "Cinzel", serif; color: var(--text-muted); font-size: 14px; }
     .tab.active { background: white; color: var(--gold-legend); border-top: 2px solid var(--gold-legend); }
 
+    /* The Text Box - We removed all pointer-events:none logic */
     input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; font-size: 16px; color: #000; background: #fff; }
-    /* Ensure textarea is clickable when enabled */
-    textarea:disabled { background: #f0f0f0; cursor: not-allowed; }
+    textarea { height: 60px; resize: none; }
+    textarea:disabled { background: #eee; cursor: not-allowed; }
 
     .btn { padding: 14px 28px; border-radius: 6px; font-family: "Cinzel", serif; cursor: pointer; border: 1px solid var(--gold-legend); background: transparent; color: var(--gold-legend); text-transform: uppercase; letter-spacing: 1px; width: 100%; }
     .btn.primary { background: var(--gold-legend); color: white; border: none; }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    #limitModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 41, 59, 0.9); display: none; align-items: center; justify-content: center; z-index: 99999; pointer-events: auto; }
-    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); }
+    /* The Modal - Simplified Z-index and visibility */
+    #limitModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 41, 59, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
+    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
 
     .chat-shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 650px; }
     body.logged-in .chat-shell { height: calc(100vh - 120px); }
     .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 20px; overflow-y: auto; }
-    .pitem { padding: 15px; margin-bottom: 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; transition: 0.2s; }
-    .pitem.active { border-color: var(--gold-legend); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .pitem { padding: 15px; margin-bottom: 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; }
+    .pitem.active { border-color: var(--gold-legend); background: #fffdf9; }
     .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; background: #fff; }
     .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; }
-    .bubble.them { background: #f8f6f2; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #eee; }
-    .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .bubble.them { background: #f8f6f2; align-self: flex-start; }
+    .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; }
     .hide { display: none !important; }
   </style>
 </head>
@@ -79,9 +80,8 @@
         </div>
         <div class="card" style="padding: 30px;">
           <h4 style="font-family: Cinzel; color: var(--gold-legend);">Sacred Offerings</h4>
-          <button class="btn" onclick="buyPlan()" style="margin-bottom: 10px;">Scholar Access (£29.95)</button>
-          <button class="btn" onclick="buyPlan()" style="margin-bottom: 10px;">Legendary Access (£35.95)</button>
-          <button class="btn primary" onclick="buyPlan()">Eternal Archive (£49.95)</button>
+          <button class="btn" onclick="buyPlan()">Scholar Access (£29.95)</button>
+          <button class="btn primary" onclick="buyPlan()" style="margin-top:10px;">Eternal Archive (£49.95)</button>
         </div>
       </div>
 
@@ -92,7 +92,7 @@
             <div style="padding: 20px; border-bottom: 1px solid var(--border-accent); font-family: Cinzel;" id="chatTitle">Select a Figure</div>
             <div class="chat-log" id="chatLog"></div>
             <div style="padding: 20px; border-top: 1px solid var(--border-accent); display: flex; gap: 12px; background: white;">
-              <textarea id="chatInput" placeholder="Your question..." disabled style="flex:1; height: 50px;"></textarea>
+              <textarea id="chatInput" placeholder="Your question..." disabled></textarea>
               <button class="btn primary" id="sendBtn" disabled style="width: auto;">Send</button>
             </div>
           </div>
@@ -104,9 +104,9 @@
   <div id="limitModal">
     <div class="modal-content">
       <h2 style="font-family: Cinzel; color: var(--blue-deep);">Limit Reached</h2>
-      <p>Your 3 free historical consultations are complete. Please choose an offering to continue.</p>
-      <button class="btn primary" onclick="buyPlan()" style="margin-bottom:10px;">Unlock Full Access</button>
-      <button class="btn" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
+      <p>Your free historical consultations are complete. Please acquire an offering to continue.</p>
+      <button class="btn primary" onclick="buyPlan()">Acquire Full Access</button>
+      <button class="btn" style="margin-top:10px;" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
     </div>
   </div>
 
@@ -155,34 +155,31 @@
       profiles.forEach(p => {
         const div = document.createElement("div");
         div.className = "pitem"; div.innerText = p.name;
-        div.onclick = () => {
+        div.onclick = function() {
           document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
           div.classList.add("active");
           selectedId = p.id;
           $("chatTitle").innerText = p.name;
-          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What brings you to the archive?</div>`;
+          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What is on your mind?</div>`;
           
-          // UNLOCK TEXT BAR
+          // UNLOCK LOGIC - Absolute Force
           if (getToken()) { 
-              $("chatInput").disabled = false; 
-              $("sendBtn").disabled = false; 
-              $("chatInput").removeAttribute('disabled');
-              $("sendBtn").removeAttribute('disabled');
-              $("chatInput").focus(); 
+              const input = $("chatInput");
+              const btn = $("sendBtn");
+              input.disabled = false;
+              btn.disabled = false;
+              input.removeAttribute("disabled");
+              btn.removeAttribute("disabled");
+              input.focus();
           } else {
-              alert("Please Sign In to converse with history.");
+              alert("Please verify your identity (Sign In) first.");
           }
         };
         $("profiles").appendChild(div);
       });
     }
 
-    // LOGOUT
-    document.getElementById("logoutBtn").onclick = function() { 
-        localStorage.removeItem("jwt"); 
-        window.location.href = "/"; 
-    };
-
+    document.getElementById("logoutBtn").onclick = function() { localStorage.removeItem("jwt"); window.location.href = "/"; };
     $("sendBtn").onclick = sendMessage;
     $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
@@ -194,13 +191,13 @@
 
     $("registerBtn").onclick = async () => {
       const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value }) });
-      if (res.ok) { alert("Scholar account created. Please sign in."); $("tabLogin").click(); } else { const d = await res.json(); alert(d.error); }
+      if (res.ok) { alert("Created. Please sign in."); $("tabLogin").click(); }
     };
 
     $("tabLogin").onclick = () => { $("tabLogin").className="tab active"; $("tabRegister").className="tab"; $("loginPane").classList.remove("hide"); $("registerPane").classList.add("hide"); };
     $("tabRegister").onclick = () => { $("tabRegister").className="tab active"; $("tabLogin").className="tab"; $("registerPane").classList.remove("hide"); $("loginPane").classList.add("hide"); };
 
-    function buyPlan() { if (!getToken()) { $("tabRegister").click(); } else { window.location.href = "/pricing.html"; } }
+    function buyPlan() { window.location.href = "/pricing.html"; }
 
     if (getToken()) { document.body.classList.add("logged-in"); $("authSection").classList.add("hide"); $("logoutBtn").style.display = "block"; }
     loadProfiles();
