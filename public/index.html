@@ -31,12 +31,8 @@
     body.logged-in .wrap { max-width: none; width: 100%; padding: 0 10px 40px; }
 
     header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 20px 0;
-      border-bottom: 1px solid var(--border-accent);
-      margin-bottom: 40px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 0; border-bottom: 1px solid var(--border-accent); margin-bottom: 40px;
     }
     .brand { display: flex; align-items: center; gap: 15px; }
     .logo { width: 50px; height: 50px; background: white; border: 1.5px solid var(--gold-legend); border-radius: 50%; display: grid; place-items: center; font-family: "Cinzel", serif; color: var(--gold-legend); font-size: 22px; }
@@ -54,7 +50,7 @@
     .tab { flex: 1; padding: 15px; text-align: center; font-family: "Cinzel", serif; color: var(--text-muted); font-size: 14px; }
     .tab.active { background: white; color: var(--gold-legend); border-top: 2px solid var(--gold-legend); }
 
-    input { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; font-size: 16px; }
+    input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; font-size: 16px; }
     .btn { padding: 14px 28px; border-radius: 6px; font-family: "Cinzel", serif; cursor: pointer; border: 1px solid var(--gold-legend); background: transparent; color: var(--gold-legend); text-transform: uppercase; letter-spacing: 1px; width: 100%; }
     .btn.primary { background: var(--gold-legend); color: white; border: none; }
 
@@ -62,20 +58,22 @@
         font-size: 13px; line-height: 1.4; color: var(--text-muted); margin-bottom: 20px; font-style: italic; border-left: 2px solid var(--gold-legend); padding-left: 10px;
     }
 
-    /* Chat UI Styles */
+    #limitModal {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(30, 41, 59, 0.85); display: none; align-items: center; justify-content: center; z-index: 20000;
+    }
+    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); }
+
     .chat-shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 650px; }
     body.logged-in .chat-shell { height: calc(100vh - 120px); }
     .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 20px; overflow-y: auto; }
-    .pitem { padding: 15px; margin-bottom: 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; transition: 0.2s; font-size: 16px; }
+    .pitem { padding: 15px; margin-bottom: 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; transition: 0.2s; }
     .pitem.active { border-color: var(--gold-legend); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; background: #fff; }
     .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; word-break: break-word; }
     .bubble.them { background: #f8f6f2; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #eee; }
     .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
     .hide { display: none !important; }
-
-    #cookieBanner { position: fixed; bottom: 0; left: 0; width: 100%; background: #fff; border-top: 2px solid var(--gold-legend); padding: 20px; z-index: 10000; display: none; }
-    .cookie-content { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 
     footer { margin-top: 60px; padding: 40px 20px; text-align: center; font-size: 14px; color: var(--text-muted); border-top: 1px solid var(--border-accent); }
     footer a { color: var(--text-muted); text-decoration: none; margin: 0 10px; }
@@ -85,10 +83,7 @@
 <body>
   <div class="wrap">
     <header>
-      <div class="brand">
-        <div class="logo">L</div>
-        <h1 style="font-family: Cinzel; font-size: 24px; margin: 0;">Legend Speak</h1>
-      </div>
+      <div class="brand"><div class="logo">L</div><h1 style="font-family: Cinzel; font-size: 24px; margin: 0;">Legend Speak</h1></div>
       <button class="btn" id="logoutBtn" style="display:none; width: auto;">Leave Archive</button>
     </header>
 
@@ -98,35 +93,23 @@
     </section>
 
     <div class="grid" id="mainGrid">
-      <!-- AUTH SECTION RESTORED -->
       <div class="stack" id="authSection">
         <div class="card" style="margin-bottom: 30px;">
-          <div class="tabs">
-            <div class="tab active" id="tabLogin">Sign In</div>
-            <div class="tab" id="tabRegister">New Scholar</div>
-          </div>
+          <div class="tabs"><div class="tab active" id="tabLogin">Sign In</div><div class="tab" id="tabRegister">New Scholar</div></div>
           <div style="padding: 30px;">
-            <div id="loginPane">
-              <input id="loginEmail" type="email" placeholder="Email Address" />
-              <input id="loginPassword" type="password" placeholder="Cipher" />
-              <button class="btn primary" id="loginBtn">Access Archives</button>
-            </div>
-            <div id="registerPane" class="hide">
-              <input id="regEmail" type="email" placeholder="Email Address" />
-              <input id="regPassword" type="password" placeholder="Create Cipher" />
-              <button class="btn primary" id="registerBtn">Join the Archive</button>
-            </div>
+            <div id="loginPane"><input id="loginEmail" type="email" placeholder="Email"><input id="loginPassword" type="password" placeholder="Cipher"><button class="btn primary" id="loginBtn">Access Archives</button></div>
+            <div id="registerPane" class="hide"><input id="regEmail" type="email" placeholder="Email"><input id="regPassword" type="password" placeholder="Create Cipher"><button class="btn primary" id="registerBtn">Join the Archive</button></div>
           </div>
         </div>
 
         <div class="card" style="padding: 30px;">
-          <h4 style="font-family: Cinzel; color: var(--gold-legend); margin: 0 0 15px;">Sacred Offerings</h4>
+          <h4 style="font-family: Cinzel; color: var(--gold-legend);">Sacred Offerings</h4>
           <div class="disclaimer-box">
-            Legend Speak is an AI-generated historical-themed digital chat service for personal reflection and education. It does not provide real communication with deceased persons or historical figures.
+            Legend Speak is an AI-generated historical-themed digital chat service for personal reflection and education.
           </div>
-          <button class="btn" onclick="buyPlan('god')" style="margin-bottom: 10px;">Scholar Access (£29.95)</button>
-          <button class="btn" onclick="buyPlan('all')" style="margin-bottom: 10px;">Legendary Access (£35.95)</button>
-          <button class="btn primary" onclick="buyPlan('lifetime')">Eternal Archive (£49.95)</button>
+          <button class="btn" onclick="buyPlan()" style="margin-bottom: 10px;">Scholar Access (£29.95)</button>
+          <button class="btn" onclick="buyPlan()" style="margin-bottom: 10px;">Legendary Access (£35.95)</button>
+          <button class="btn primary" onclick="buyPlan()">Eternal Archive (£49.95)</button>
         </div>
       </div>
 
@@ -134,14 +117,10 @@
         <div class="chat-shell">
           <div class="sidebar" id="profiles"></div>
           <div style="display: flex; flex-direction: column; height: 100%;">
-            <div style="padding: 20px; border-bottom: 1px solid var(--border-accent); display: flex; align-items: center; gap: 15px;">
-              <div id="chatTitle" style="font-family: Cinzel; color: var(--blue-deep);">Select a Figure</div>
-            </div>
-            <div class="chat-log" id="chatLog">
-              <div id="welcomeMessage" style="text-align: center; color: var(--text-muted); font-style: italic; margin-top: 100px;">Verify your identity to begin.</div>
-            </div>
+            <div style="padding: 20px; border-bottom: 1px solid var(--border-accent); font-family: Cinzel; color: var(--blue-deep);" id="chatTitle">Select a Figure</div>
+            <div class="chat-log" id="chatLog"></div>
             <div style="padding: 20px; border-top: 1px solid var(--border-accent); display: flex; gap: 12px; background: white;">
-              <textarea id="chatInput" placeholder="Ask your question..." disabled style="flex:1; border: 1px solid #ddd; border-radius: 8px; padding: 10px; resize: none;"></textarea>
+              <textarea id="chatInput" placeholder="Ask your question..." disabled style="flex:1; height: 50px; resize: none;"></textarea>
               <button class="btn primary" id="sendBtn" disabled style="width: auto;">Send</button>
             </div>
           </div>
@@ -150,84 +129,71 @@
     </div>
 
     <footer>
-      <div style="margin-bottom:15px;">
-        <a href="/privacy-policy.html">Privacy Policy</a>
-        <a href="/terms-and-conditions.html">Terms & Conditions</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/refund-policy.html">Refund Policy</a>
-      </div>
-      <div>&copy; 2026 RIDGWELL SERVICES LIMITED. Registered in England and Wales No. 16277582.</div>
+        <a href="/privacy-policy.html">Privacy Policy</a> | <a href="/terms-and-conditions.html">Terms & Conditions</a> | <a href="/contact.html">Contact</a> | <a href="/refund-policy.html">Refund Policy</a>
     </footer>
   </div>
 
-  <!-- GDPR BANNER -->
-  <div id="cookieBanner">
-    <div class="cookie-content">
-      <div class="cookie-text">We use cookies for security and to enhance your journey. By continuing, you agree to our <a href="/terms-and-conditions.html">Terms & Cookie Policy</a>.</div>
-      <div class="cookie-btns">
-        <button class="btn" onclick="acceptCookies()" style="width:auto; padding:8px 20px;">Accept</button>
-      </div>
+  <!-- LIMIT MODAL -->
+  <div id="limitModal">
+    <div class="modal-content">
+      <h2 style="font-family: Cinzel; color: var(--blue-deep);">Access Limit Reached</h2>
+      <p>You have used your 3 free historical consultations. Please choose an offering to continue your journey through time.</p>
+      <button class="btn primary" onclick="buyPlan()" style="margin-bottom:10px;">View Membership Tiers</button>
+      <button class="btn" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
     </div>
   </div>
 
   <script>
     const $ = (id) => document.getElementById(id);
-    const API_BASE = "";
     let selectedId = null;
 
-    function setToken(t) { localStorage.setItem("jwt", t); }
     function getToken() { return localStorage.getItem("jwt"); }
 
-    // AUTH TAB LOGIC
-    $("tabLogin").onclick = () => {
-      $("tabLogin").classList.add("active");
-      $("tabRegister").classList.remove("active");
-      $("loginPane").classList.remove("hide");
-      $("registerPane").classList.add("hide");
-    };
-    $("tabRegister").onclick = () => {
-      $("tabRegister").classList.add("active");
-      $("tabLogin").classList.remove("active");
-      $("registerPane").classList.remove("hide");
-      $("loginPane").classList.add("hide");
-    };
-
-    // REDIRECT LOGIC FOR OFFERINGS
-    function buyPlan(plan) {
+    function buyPlan() {
       if (!getToken()) {
         alert("Please register an account first to secure your access.");
         $("tabRegister").click();
-        window.scrollTo({ top: $("authSection").offsetTop, behavior: 'smooth' });
       } else {
-        window.location.href = `/checkout.html?plan=${plan}`;
+        window.location.href = `/pricing.html`;
       }
     }
 
     async function loadProfiles() {
-      const res = await fetch(`${API_BASE}/api/profiles`);
+      const res = await fetch("/api/profiles");
       const profiles = await res.json();
-      const container = $("profiles");
       profiles.forEach(p => {
         const div = document.createElement("div");
-        div.className = "pitem";
-        div.innerText = p.name;
-        div.onclick = () => selectProfile(p, div);
-        container.appendChild(div);
+        div.className = "pitem"; div.innerText = p.name;
+        div.onclick = () => {
+          document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
+          div.classList.add("active");
+          selectedId = p.id;
+          $("chatTitle").innerText = p.name;
+          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What brings you to the archive?</div>`;
+          if (getToken()) { $("chatInput").disabled = false; $("sendBtn").disabled = false; }
+        };
+        $("profiles").appendChild(div);
       });
     }
 
-    function selectProfile(p, el) {
-      document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
-      el.classList.add("active");
-      selectedId = p.id;
-      $("chatTitle").innerText = p.name;
-      $("welcomeMessage")?.remove();
-      $("chatLog").innerHTML = "";
-      if (getToken()) {
-        $("chatInput").disabled = false;
-        $("sendBtn").disabled = false;
+    async function sendMessage() {
+      const text = $("chatInput").value.trim();
+      if (!text || !selectedId) return;
+
+      appendMessage("me", text);
+      $("chatInput").value = "";
+      
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+        body: JSON.stringify({ characterId: selectedId, message: text })
+      });
+      const data = await res.json();
+      
+      if (data.reply) appendMessage("them", data.reply);
+      else if (data.error === "LIMIT_REACHED") {
+        $("limitModal").style.display = "flex";
       }
-      appendMessage("them", `I am ${p.name}. What brings you to the archive?`);
     }
 
     function appendMessage(side, text) {
@@ -235,55 +201,31 @@
       div.className = `bubble ${side}`;
       div.innerText = text;
       $("chatLog").appendChild(div);
-      $("chatLog").scrollTo(0, $("chatLog").scrollHeight);
+      $("chatLog").scrollTop = $("chatLog").scrollHeight;
     }
 
+    $("sendBtn").onclick = sendMessage;
+    $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
+
     $("loginBtn").onclick = async () => {
-      const email = $("loginEmail").value;
-      const password = $("loginPassword").value;
-      const res = await fetch(`${API_BASE}/api/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+      const res = await fetch("/api/login", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: $("loginEmail").value, password: $("loginPassword").value })
       });
       const data = await res.json();
-      if (res.ok) {
-        setToken(data.token);
-        location.reload();
-      } else { alert(data.error); }
+      if (res.ok) { localStorage.setItem("jwt", data.token); location.reload(); } else alert(data.error);
     };
 
     $("registerBtn").onclick = async () => {
-      const email = $("regEmail").value;
-      const password = $("regPassword").value;
-      const res = await fetch(`${API_BASE}/api/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+      const res = await fetch("/api/register", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value })
       });
-      if (res.ok) {
-        alert("Account created. Please sign in.");
-        $("tabLogin").click();
-      } else {
-        const data = await res.json();
-        alert(data.error);
-      }
+      if (res.ok) { alert("Identity documented. Please sign in."); $("tabLogin").click(); } else alert("Error joining the archive.");
     };
 
-    $("logoutBtn").onclick = () => { localStorage.removeItem("jwt"); location.reload(); };
-
-    if (getToken()) {
-      document.body.classList.add("logged-in");
-      $("authSection").classList.add("hide");
-      $("logoutBtn").style.display = "block";
-      $("heroText").innerHTML = "<h2>Archive Access Granted</h2><p>Continue your dialogue with the legends.</p>";
-    }
-
-    function acceptCookies() { localStorage.setItem("archive_cookies", "true"); $("cookieBanner").style.display="none"; }
-    window.onload = () => {
-      loadProfiles();
-      if (!localStorage.getItem("archive_cookies")) $("cookieBanner").style.display="block";
-    };
+    if (getToken()) { document.body.classList.add("logged-in"); $("authSection").classList.add("hide"); $("logoutBtn").style.display = "block"; }
+    loadProfiles();
   </script>
 </body>
 </html>
