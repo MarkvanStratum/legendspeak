@@ -50,7 +50,6 @@
     .btn { padding: 14px 28px; border-radius: 6px; font-family: "Cinzel", serif; cursor: pointer; border: 1px solid var(--gold-legend); background: transparent; color: var(--gold-legend); text-transform: uppercase; letter-spacing: 1px; width: 100%; }
     .btn.primary { background: var(--gold-legend); color: white; border: none; }
 
-    /* Modal Styling */
     #limitModal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(30, 41, 59, 0.85); display: none; align-items: center; justify-content: center; z-index: 20000;
@@ -79,7 +78,7 @@
       <button class="btn" id="logoutBtn" style="display:none; width: auto;">Leave Archive</button>
     </header>
 
-    <div class="grid">
+    <div class="grid" id="mainGrid">
       <div class="stack" id="authSection">
         <div class="card" style="margin-bottom: 30px;">
           <div class="tabs"><div class="tab active" id="tabLogin">Sign In</div><div class="tab" id="tabRegister">New Scholar</div></div>
@@ -118,7 +117,7 @@
       <h2 style="font-family: Cinzel; color: var(--blue-deep);">Limit Reached</h2>
       <p>You have used your 3 free historical consultations. Please choose an offering to continue your dialogue.</p>
       <button class="btn primary" onclick="buyPlan()" style="margin-bottom:10px;">Unlock Full Access</button>
-      <button class="btn" onclick="$('limitModal').style.display='none'">Dismiss</button>
+      <button class="btn" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
     </div>
   </div>
 
@@ -213,7 +212,34 @@
       if (res.ok) { alert("Scholar account created. Please sign in."); $("tabLogin").click(); }
     };
 
-    if (getToken()) { document.body.classList.add("logged-in"); $("authSection").classList.add("hide"); $("logoutBtn").style.display = "block"; }
+    // RESTORED LOGOUT LOGIC
+    const leaveButton = document.getElementById("logoutBtn");
+    if (leaveButton) {
+        leaveButton.onclick = function() {
+            localStorage.removeItem("jwt");
+            window.location.href = "/";
+        };
+    }
+
+    $("tabLogin").onclick = () => {
+      $("tabLogin").classList.add("active");
+      $("tabRegister").classList.remove("active");
+      $("loginPane").classList.remove("hide");
+      $("registerPane").classList.add("hide");
+    };
+    $("tabRegister").onclick = () => {
+      $("tabRegister").classList.add("active");
+      $("tabLogin").classList.remove("active");
+      $("registerPane").classList.remove("hide");
+      $("loginPane").classList.add("hide");
+    };
+
+    if (getToken()) {
+      document.body.classList.add("logged-in");
+      $("authSection").classList.add("hide");
+      $("logoutBtn").style.display = "block";
+    }
+
     loadProfiles();
   </script>
 </body>
