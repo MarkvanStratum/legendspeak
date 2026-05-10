@@ -124,10 +124,15 @@
         body: JSON.stringify({ characterId: selectedId, message: text })
       });
       
+      // EXPLICIT CHECK FOR THE 403 LIMIT STATUS
       if (res.status === 403) {
         const data = await res.json();
-        if (data.error === "LIMIT_REACHED") { $("limitModal").style.display = "flex"; return; }
+        if (data.error === "LIMIT_REACHED") {
+            $("limitModal").style.display = "flex"; 
+            return; 
+        }
       }
+
       const data = await res.json();
       if (data.reply) appendMessage("them", data.reply);
     }
@@ -152,6 +157,8 @@
           selectedId = p.id;
           $("chatTitle").innerText = p.name;
           $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What brings you to the archive?</div>`;
+          
+          // CRITICAL: This re-enables the text bar when a profile is selected
           if (getToken()) { 
               $("chatInput").disabled = false; 
               $("sendBtn").disabled = false; 
@@ -162,7 +169,15 @@
       });
     }
 
-    document.getElementById("logoutBtn").onclick = () => { localStorage.removeItem("jwt"); window.location.href = "/"; };
+    // RELIABLE LOGOUT LOGIC
+    const leaveBtn = document.getElementById("logoutBtn");
+    if (leaveBtn) {
+        leaveBtn.onclick = function() {
+            localStorage.removeItem("jwt");
+            window.location.href = "/";
+        };
+    }
+
     $("sendBtn").onclick = sendMessage;
     $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
