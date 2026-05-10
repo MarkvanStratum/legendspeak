@@ -3,76 +3,107 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Legend Speak — Converse with History</title>
+  <title>Speak to Heaven — Biblical AI Chat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 
   <style>
     :root {
-      --bg-archive: #f4f1ea; --marble: #ffffff; --gold-legend: #c5a059;
-      --blue-deep: #1e293b; --text-main: #33302c; --text-muted: #8a8276;
-      --border-accent: rgba(197, 160, 89, 0.25); --radius: 12px;
+      --bg-heaven: #fdfcfb; 
+      --marble: #ffffff;
+      --gold-divine: #c5a059;
+      --blue-saint: #2c3e50;
+      --text-main: #33302c;
+      --text-muted: #8a8276;
+      --border-holy: rgba(197, 160, 89, 0.25);
+      --radius: 12px;
+      --divine-shadow: 0 15px 50px rgba(0,0,0,0.04);
     }
 
     * { box-sizing: border-box; }
-    body { margin: 0; color: var(--text-main); background-color: var(--bg-archive); font-family: "EB Garamond", serif; font-size: 19px; line-height: 1.7; }
+    body {
+      margin: 0; color: var(--text-main); background-color: var(--bg-heaven);
+      font-family: "EB Garamond", serif; font-size: 19px; line-height: 1.7;
+    }
+
     .wrap { max-width: 1200px; margin: 0 auto; padding: 0px 20px 80px; }
     body.logged-in .wrap { max-width: none; width: 100%; padding: 0 10px 40px; }
 
-    header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--border-accent); margin-bottom: 40px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 0; border-bottom: 1px solid var(--border-holy); margin-bottom: 40px;
+    }
     .brand { display: flex; align-items: center; gap: 15px; }
-    .logo { width: 50px; height: 50px; background: white; border: 1.5px solid var(--gold-legend); border-radius: 50%; display: grid; place-items: center; font-family: "Cinzel", serif; color: var(--gold-legend); font-size: 22px; }
+    .logo { width: 50px; height: 50px; background: white; border: 1.5px solid var(--gold-divine); border-radius: 50%; display: grid; place-items: center; font-family: "Cinzel", serif; color: var(--gold-divine); font-size: 22px; }
     
     .grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 40px; }
     body.logged-in .grid { grid-template-columns: 1fr; gap: 0; }
 
-    .card { background: var(--marble); border: 1px solid var(--border-accent); border-radius: var(--radius); box-shadow: 0 15px 50px rgba(0,0,0,0.06); overflow: hidden; }
-    .tabs { display: flex; background: #f8f8f8; cursor: pointer; border-bottom: 1px solid var(--border-accent); }
-    .tab { flex: 1; padding: 15px; text-align: center; font-family: "Cinzel", serif; font-size: 14px; color: var(--text-muted); }
-    .tab.active { background: white; color: var(--gold-legend); border-top: 2px solid var(--gold-legend); }
+    .card { background: var(--marble); border: 1px solid var(--border-holy); border-radius: var(--radius); box-shadow: var(--divine-shadow); overflow: hidden; }
+    
+    .tabs { display: flex; background: #f8f8f8; cursor: pointer; border-bottom: 1px solid var(--border-holy); }
+    .tab { flex: 1; padding: 15px; text-align: center; font-family: "Cinzel", serif; color: var(--text-muted); font-size: 14px; }
+    .tab.active { background: white; color: var(--gold-divine); border-top: 2px solid var(--gold-divine); }
 
     input, textarea { width: 100%; padding: 12px; margin-bottom: 15px; border-radius: 8px; border: 1px solid #ddd; font-family: inherit; font-size: 16px; }
-    .btn { padding: 14px 28px; border-radius: 6px; font-family: "Cinzel", serif; cursor: pointer; border: 1px solid var(--gold-legend); background: transparent; color: var(--gold-legend); text-transform: uppercase; letter-spacing: 1px; width: 100%; }
-    .btn.primary { background: var(--gold-legend); color: white; border: none; }
+    .btn { padding: 14px 28px; border-radius: 6px; font-family: "Cinzel", serif; cursor: pointer; border: 1px solid var(--gold-divine); background: transparent; color: var(--gold-divine); text-transform: uppercase; letter-spacing: 1px; width: 100%; }
+    .btn.primary { background: var(--gold-divine); color: white; border: none; }
 
-    /* Fix: Modal click-through */
+    /* Modal Styling */
     #limitModal {
       position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(30, 41, 59, 0.85); display: none; align-items: center; justify-content: center; z-index: 20000;
-      pointer-events: none; /* Allows clicking behind it when hidden */
+      background: rgba(44, 62, 80, 0.85); display: none; align-items: center; justify-content: center; z-index: 20000;
+      pointer-events: none; /* Default state */
     }
-    #limitModal.active { display: flex; pointer-events: auto; }
-    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); }
+    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-divine); }
 
     .chat-shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 650px; }
     body.logged-in .chat-shell { height: calc(100vh - 120px); }
-    .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 20px; overflow-y: auto; }
+    .sidebar { background: #faf9f7; border-right: 1px solid var(--border-holy); padding: 20px; overflow-y: auto; }
     .pitem { padding: 15px; margin-bottom: 12px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; }
-    .pitem.active { border-color: var(--gold-legend); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .pitem.active { border-color: var(--gold-divine); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; background: #fff; }
-    .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; }
-    .bubble.them { background: #f8f6f2; align-self: flex-start; border-bottom-left-radius: 4px; }
-    .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; word-break: break-word; }
+    .bubble.them { background: #f8f6f2; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #eee; }
+    .bubble.me { background: var(--blue-saint); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
     .hide { display: none !important; }
+
+    footer { margin-top: 60px; padding: 25px; text-align: center; font-size: 14px; border-top: 1px solid var(--border-holy); }
+    footer a { color: var(--text-muted); text-decoration: none; margin: 0 10px; }
   </style>
 </head>
 
 <body>
   <div class="wrap">
     <header>
-      <div class="brand"><div class="logo">L</div><h1>Legend Speak</h1></div>
-      <button class="btn" id="logoutBtn" style="display:none; width: auto;">Leave Archive</button>
+      <div class="brand"><div class="logo">†</div><h1>Speak to Heaven</h1></div>
+      <button class="btn" id="logoutBtn" style="display:none; width: auto;">Leave Sanctuary</button>
     </header>
 
     <div class="grid" id="mainGrid">
       <div class="stack" id="authSection">
         <div class="card" style="margin-bottom: 30px;">
-          <div class="tabs"><div class="tab active" id="tabLogin">Sign In</div><div class="tab" id="tabRegister">New Scholar</div></div>
+          <div class="tabs"><div class="tab active" id="tabLogin">Sign In</div><div class="tab" id="tabRegister">New Account</div></div>
           <div style="padding: 30px;">
-            <div id="loginPane"><input id="loginEmail" type="email" placeholder="Email"><input id="loginPassword" type="password" placeholder="Cipher"><button class="btn primary" id="loginBtn">Access Archives</button></div>
-            <div id="registerPane" class="hide"><input id="regEmail" type="email" placeholder="Email"><input id="regPassword" type="password" placeholder="Create Cipher"><button class="btn primary" id="registerBtn">Join Archive</button></div>
+            <div id="loginPane">
+              <input id="loginEmail" type="email" placeholder="Email Address">
+              <input id="loginPassword" type="password" placeholder="Password">
+              <button class="btn primary" id="loginBtn">Enter Sanctuary</button>
+            </div>
+            <div id="registerPane" class="hide">
+              <input id="regEmail" type="email" placeholder="Email Address">
+              <input id="regPassword" type="password" placeholder="Choose Password">
+              <button class="btn primary" id="registerBtn">Create Account</button>
+            </div>
           </div>
+        </div>
+
+        <div class="card" style="padding: 30px;">
+          <h4 style="font-family: Cinzel; color: var(--gold-divine);">Offerings</h4>
+          <button class="btn" onclick="goToPricing()" style="margin-bottom: 10px;">God Access (£29.95)</button>
+          <button class="btn" onclick="goToPricing()" style="margin-bottom: 10px;">Full Access (£35.95)</button>
+          <button class="btn primary" onclick="goToPricing()">Lifetime Access (£49.95)</button>
         </div>
       </div>
 
@@ -80,24 +111,28 @@
         <div class="chat-shell">
           <div class="sidebar" id="profiles"></div>
           <div style="display: flex; flex-direction: column; height: 100%;">
-            <div style="padding: 20px; border-bottom: 1px solid var(--border-accent); font-family: Cinzel;" id="chatTitle">Select a Figure</div>
+            <div style="padding: 20px; border-bottom: 1px solid var(--border-holy); font-family: Cinzel;" id="chatTitle">Select a Prophet</div>
             <div class="chat-log" id="chatLog"></div>
-            <div style="padding: 20px; border-top: 1px solid var(--border-accent); display: flex; gap: 12px; background: white;">
-              <textarea id="chatInput" placeholder="Ask your question..." disabled style="flex:1; height: 50px; resize: none;"></textarea>
+            <div style="padding: 20px; border-top: 1px solid var(--border-holy); display: flex; gap: 12px; background: white;">
+              <textarea id="chatInput" placeholder="Your question..." disabled style="flex:1; height: 50px; resize: none;"></textarea>
               <button class="btn primary" id="sendBtn" disabled style="width: auto;">Send</button>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    <footer>
+        <a href="/privacy-policy.html">Privacy</a> | <a href="/terms-and-conditions.html">Terms</a> | <a href="/contact.html">Contact</a> | <a href="/refund-policy.html">Refunds</a>
+    </footer>
   </div>
 
   <div id="limitModal">
     <div class="modal-content">
-      <h2 style="font-family: Cinzel; color: var(--blue-deep);">Access Limit Reached</h2>
-      <p>You have used your 3 free consultations. Please choose an offering to continue.</p>
-      <button class="btn primary" onclick="window.location.href='/pricing.html'" style="margin-bottom:10px;">View Offerings</button>
-      <button class="btn" onclick="$('limitModal').classList.remove('active')">Dismiss</button>
+      <h2 style="font-family: Cinzel; color: var(--blue-saint);">Free Limit Reached</h2>
+      <p>You have used your 3 free biblical consultations. Please choose a sacred offering to continue your journey.</p>
+      <button class="btn primary" onclick="goToPricing()" style="margin-bottom:10px;">View Offerings</button>
+      <button class="btn" onclick="$('limitModal').style.display='none'; $('limitModal').style.pointerEvents='none';">Dismiss</button>
     </div>
   </div>
 
@@ -107,9 +142,56 @@
 
     function getToken() { return localStorage.getItem("jwt"); }
 
-    // Tab Toggle
+    // Navigation to Pricing
+    function goToPricing() {
+      if (!getToken()) {
+        alert("Please register first to secure your account.");
+        $("tabRegister").click();
+      } else {
+        window.location.href = "/pricing.html";
+      }
+    }
+
+    // AUTH Tab Switching
     $("tabLogin").onclick = () => { $("tabLogin").className="tab active"; $("tabRegister").className="tab"; $("loginPane").classList.remove("hide"); $("registerPane").classList.add("hide"); };
     $("tabRegister").onclick = () => { $("tabRegister").className="tab active"; $("tabLogin").className="tab"; $("registerPane").classList.remove("hide"); $("loginPane").classList.add("hide"); };
+
+    // Chat Logic
+    async function sendMessage() {
+      const text = $("chatInput").value.trim();
+      if (!text || !selectedId) return;
+
+      appendMessage("me", text);
+      $("chatInput").value = "";
+      
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+          body: JSON.stringify({ characterId: selectedId, message: text })
+        });
+
+        const data = await res.json();
+
+        if (res.status === 403 || data.error === "LIMIT_REACHED") {
+          $("limitModal").style.display = "flex";
+          $("limitModal").style.pointerEvents = "auto";
+          return;
+        }
+
+        if (data.reply) {
+          appendMessage("them", data.reply);
+        }
+      } catch (err) { console.error("API error", err); }
+    }
+
+    function appendMessage(side, text) {
+      const div = document.createElement("div");
+      div.className = `bubble ${side}`;
+      div.innerText = text;
+      $("chatLog").appendChild(div);
+      $("chatLog").scrollTop = $("chatLog").scrollHeight;
+    }
 
     async function loadProfiles() {
       const res = await fetch("/api/profiles");
@@ -122,45 +204,17 @@
           div.classList.add("active");
           selectedId = p.id;
           $("chatTitle").innerText = p.name;
-          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What brings you here?</div>`;
-          // UNLOCK INPUTS
-          $("chatInput").disabled = false;
-          $("sendBtn").disabled = false;
-          $("chatInput").focus();
+          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What is on your heart?</div>`;
+          if (getToken()) { $("chatInput").disabled = false; $("sendBtn").disabled = false; }
         };
         $("profiles").appendChild(div);
       });
     }
 
-    async function sendMessage() {
-      const text = $("chatInput").value.trim();
-      if (!text || !selectedId || !getToken()) return;
-
-      appendMessage("me", text);
-      $("chatInput").value = "";
-      
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
-        body: JSON.stringify({ characterId: selectedId, message: text })
-      });
-      const data = await res.json();
-      
-      if (data.reply) appendMessage("them", data.reply);
-      else if (data.error === "LIMIT_REACHED") $("limitModal").classList.add("active");
-    }
-
-    function appendMessage(side, text) {
-      const div = document.createElement("div");
-      div.className = `bubble ${side}`;
-      div.innerText = text;
-      $("chatLog").appendChild(div);
-      $("chatLog").scrollTop = $("chatLog").scrollHeight;
-    }
-
     $("sendBtn").onclick = sendMessage;
     $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
+    // LOGIN / REGISTER
     $("loginBtn").onclick = async () => {
       const res = await fetch("/api/login", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -175,12 +229,17 @@
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value })
       });
-      if (res.ok) { alert("Success. Please sign in."); $("tabLogin").click(); }
+      if (res.ok) { alert("Created successfully. Please sign in."); $("tabLogin").click(); }
     };
 
     $("logoutBtn").onclick = () => { localStorage.removeItem("jwt"); location.reload(); };
 
-    if (getToken()) { document.body.classList.add("logged-in"); $("authSection").classList.add("hide"); $("logoutBtn").style.display = "block"; }
+    if (getToken()) {
+      document.body.classList.add("logged-in");
+      $("authSection").classList.add("hide");
+      $("logoutBtn").style.display = "block";
+    }
+
     loadProfiles();
   </script>
 </body>
