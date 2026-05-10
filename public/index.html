@@ -122,125 +122,129 @@
   </div>
 
   <script>
-    const $ = (id) => document.getElementById(id);
-    let selectedId = null;
+  const $ = (id) => document.getElementById(id);
+  let selectedId = null;
 
-    function getToken() { return localStorage.getItem("jwt"); }
+  function getToken() { return localStorage.getItem("jwt"); }
 
-    function buyPlan() {
-      if (!getToken()) {
-        alert("Please register a scholar account first.");
-        $("tabRegister").click();
-      } else {
-        window.location.href = `/pricing.html`;
-      }
-    }
+  // 1. FIXED SEND MESSAGE LOGIC
+  async function sendMessage() {
+    const text = $("chatInput").value.trim();
+    if (!text || !selectedId) return;
 
-    async function sendMessage() {
-      const text = $("chatInput").value.trim();
-      if (!text || !selectedId) return;
-
-      appendMessage("me", text);
-      $("chatInput").value = "";
-      
+    appendMessage("me", text);
+    $("chatInput").value = "";
+    
+    try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
+        headers: { 
+          "Content-Type": "application/json", 
+          "Authorization": `Bearer ${getToken()}` 
+        },
         body: JSON.stringify({ characterId: selectedId, message: text })
       });
-      
+
+      // If the server blocks the message (Status 403)
       if (res.status === 403) {
-          const data = await res.json();
-          if (data.error === "LIMIT_REACHED") {
-            $("limitModal").style.display = "flex";
-            return;
-          }
+        const data = await res.json();
+        if (data.error === "LIMIT_REACHED") {
+          $("limitModal").style.display = "flex"; // Show the pop-up
+          return; 
+        }
       }
 
       const data = await res.json();
       if (data.reply) appendMessage("them", data.reply);
+    } catch (err) {
+      console.error("Archive connection failed.");
     }
+  }
 
-    function appendMessage(side, text) {
+  function appendMessage(side, text) {
+    const div = document.createElement("div");
+    div.className = `bubble ${side}`;
+    div.innerText = text;
+    $("chatLog").appendChild(div);
+    $("chatLog").scrollTop = $("chatLog").scrollHeight;
+  }
+
+  // 2. LOAD PROFILES & UNLOCK INPUT
+  async function loadProfiles() {
+    const res = await fetch("/api/profiles");
+    const profiles = await res.json();
+    profiles.forEach(p => {
       const div = document.createElement("div");
-      div.className = `bubble ${side}`;
-      div.innerText = text;
-      $("chatLog").appendChild(div);
-      $("chatLog").scrollTop = $("chatLog").scrollHeight;
-    }
+      div.className = "pitem"; div.innerText = p.name;
+      div.onclick = () => {
+        document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
+        div.classList.add("active");
+        selectedId = p.id;
+        $("chatTitle").innerText = p.name;
+        $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What brings you to the archive?</div>`;
+        
+        if (getToken()) { 
+            $("chatInput").disabled = false; 
+            $("sendBtn").disabled = false; 
+            $("chatInput").focus();
+        }
+      };
+      $("profiles").appendChild(div);
+    });
+  }
 
-    async function loadProfiles() {
-      const res = await fetch("/api/profiles");
-      const profiles = await res.json();
-      profiles.forEach(p => {
-        const div = document.createElement("div");
-        div.className = "pitem"; div.innerText = p.name;
-        div.onclick = () => {
-          document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
-          div.classList.add("active");
-          selectedId = p.id;
-          $("chatTitle").innerText = p.name;
-          $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What brings you to the archive?</div>`;
-          
-          if (getToken()) { 
-              $("chatInput").disabled = false; 
-              $("sendBtn").disabled = false; 
-              $("chatInput").focus();
-          }
-        };
-        $("profiles").appendChild(div);
-      });
-    }
-
-    $("sendBtn").onclick = sendMessage;
-    $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
-
-    $("loginBtn").onclick = async () => {
-      const res = await fetch("/api/login", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: $("loginEmail").value, password: $("loginPassword").value })
-      });
-      const data = await res.json();
-      if (res.ok) { localStorage.setItem("jwt", data.token); location.reload(); } else alert(data.error);
+  // 3. FIXED LOGOUT LOGIC
+  const leaveBtn = document.getElementById("logoutBtn");
+  if (leaveBtn) {
+    leaveBtn.onclick = () => {
+      localStorage.removeItem("jwt");
+      window.location.href = "/";
     };
+  }
 
-    $("registerBtn").onclick = async () => {
-      const res = await fetch("/api/register", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value })
-      });
-      if (res.ok) { alert("Scholar account created. Please sign in."); $("tabLogin").click(); }
-    };
+  // 4. UI EVENT LISTENERS
+  $("sendBtn").onclick = sendMessage;
+  $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
-    // RESTORED LOGOUT LOGIC
-    const leaveButton = document.getElementById("logoutBtn");
-    if (leaveButton) {
-        leaveButton.onclick = function() {
-            localStorage.removeItem("jwt");
-            window.location.href = "/";
-        };
-    }
+  $("loginBtn").onclick = async () => {
+    const res = await fetch("/api/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: $("loginEmail").value, password: $("loginPassword").value })
+    });
+    const data = await res.json();
+    if (res.ok) { localStorage.setItem("jwt", data.token); location.reload(); } else alert(data.error);
+  };
 
-    $("tabLogin").onclick = () => {
-      $("tabLogin").classList.add("active");
-      $("tabRegister").classList.remove("active");
-      $("loginPane").classList.remove("hide");
-      $("registerPane").classList.add("hide");
-    };
-    $("tabRegister").onclick = () => {
-      $("tabRegister").classList.add("active");
-      $("tabLogin").classList.remove("active");
-      $("registerPane").classList.remove("hide");
-      $("loginPane").classList.add("hide");
-    };
+  $("registerBtn").onclick = async () => {
+    const res = await fetch("/api/register", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value })
+    });
+    if (res.ok) { alert("Scholar account created. Please sign in."); $("tabLogin").click(); }
+  };
 
-    if (getToken()) {
-      document.body.classList.add("logged-in");
-      $("authSection").classList.add("hide");
-      $("logoutBtn").style.display = "block";
-    }
+  // Switch Tabs
+  $("tabLogin").onclick = () => {
+    $("tabLogin").classList.add("active"); $("tabRegister").classList.remove("active");
+    $("loginPane").classList.remove("hide"); $("registerPane").classList.add("hide");
+  };
+  $("tabRegister").onclick = () => {
+    $("tabRegister").classList.add("active"); $("tabLogin").classList.remove("active");
+    $("registerPane").classList.remove("hide"); $("loginPane").classList.add("hide");
+  };
 
-    loadProfiles();
-  </script>
+  function buyPlan() {
+    if (!getToken()) { $("tabRegister").click(); } 
+    else { window.location.href = "/pricing.html"; }
+  }
+
+  if (getToken()) {
+    document.body.classList.add("logged-in");
+    $("authSection").classList.add("hide");
+    $("logoutBtn").style.display = "block";
+  }
+
+  loadProfiles();
+</script>
 </body>
 </html>
