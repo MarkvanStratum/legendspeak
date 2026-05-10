@@ -44,15 +44,25 @@
     #limitModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 41, 59, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
     .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); }
 
-    .chat-shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 650px; }
+    .chat-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); height: 650px; }
     body.logged-in .chat-shell { height: calc(100vh - 120px); }
-    .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 20px; overflow-y: auto; }
+    .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 15px; overflow-y: auto; }
+    
     .pitem { display: flex; align-items: center; gap: 12px; padding: 12px; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; }
     .pitem img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold-legend); }
     .pitem.active { border-color: var(--gold-legend); background: #fffdf9; }
     
-    /* CRITICAL FIX: The Scrollable Area */
-    .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; background: #fff; max-height: 100%; }
+    /* SCROLL FIX: Set a fixed height and overflow */
+    .chat-log { 
+        padding: 30px; 
+        display: flex; 
+        flex-direction: column; 
+        gap: 20px; 
+        overflow-y: scroll; 
+        height: 450px; 
+        background: #fff; 
+        scroll-behavior: smooth;
+    }
     
     .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; word-wrap: break-word; }
     .bubble.them { background: #f8f6f2; align-self: flex-start; }
@@ -91,7 +101,7 @@
             <div style="padding: 20px; border-bottom: 1px solid var(--border-accent); font-family: Cinzel;" id="chatTitle">Select a Figure</div>
             <div class="chat-log" id="chatLog"></div>
             <div style="padding: 20px; border-top: 1px solid var(--border-accent); display: flex; gap: 12px; background: white;">
-              <textarea id="chatInput" placeholder="Your question..." disabled style="flex:1; height: 50px; resize: none;"></textarea>
+              <textarea id="chatInput" placeholder="Your question..." disabled style="flex:1; height: 60px; resize: none;"></textarea>
               <button class="btn primary" id="sendBtn" disabled style="width: auto;">Send</button>
             </div>
           </div>
@@ -137,16 +147,17 @@
       if (data.reply) appendMessage("them", data.reply);
     }
 
-    // THE AUTO-SCROLL FIX
     function appendMessage(side, text) {
       const div = document.createElement("div");
       div.className = `bubble ${side}`;
       div.innerText = text;
-      const chatLog = $("chatLog");
-      chatLog.appendChild(div);
+      const log = $("chatLog");
+      log.appendChild(div);
       
-      // Forces the scroll to the bottom every time a message is added
-      chatLog.scrollTop = chatLog.scrollHeight;
+      // FORCED SCROLL Logic
+      setTimeout(() => {
+        log.scrollTop = log.scrollHeight;
+      }, 50);
     }
 
     async function loadProfiles() {
@@ -174,12 +185,12 @@
 
     $("loginBtn").onclick = async () => {
       const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("loginEmail").value, password: $("loginPassword").value }) });
-      if (res.ok) { const d = await res.json(); localStorage.setItem("jwt", d.token); location.reload(); } else { alert("Access Denied."); }
+      if (res.ok) { const d = await res.json(); localStorage.setItem("jwt", d.token); location.reload(); } else { alert("Login failed."); }
     };
 
     $("registerBtn").onclick = async () => {
       const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value }) });
-      if (res.ok) { alert("Registration complete. Please sign in."); $("tabLogin").click(); }
+      if (res.ok) { alert("Success. Please sign in."); $("tabLogin").click(); }
     };
 
     $("tabLogin").onclick = () => { $("tabLogin").className="tab active"; $("tabRegister").className="tab"; $("loginPane").classList.remove("hide"); $("registerPane").classList.add("hide"); };
