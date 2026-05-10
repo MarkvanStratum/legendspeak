@@ -51,8 +51,10 @@
     .pitem img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 1px solid var(--gold-legend); }
     .pitem.active { border-color: var(--gold-legend); background: #fffdf9; }
     
-    .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; background: #fff; }
-    .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; }
+    /* CRITICAL FIX: The Scrollable Area */
+    .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; flex: 1; background: #fff; max-height: 100%; }
+    
+    .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; word-wrap: break-word; }
     .bubble.them { background: #f8f6f2; align-self: flex-start; }
     .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; }
     .hide { display: none !important; }
@@ -89,7 +91,7 @@
             <div style="padding: 20px; border-bottom: 1px solid var(--border-accent); font-family: Cinzel;" id="chatTitle">Select a Figure</div>
             <div class="chat-log" id="chatLog"></div>
             <div style="padding: 20px; border-top: 1px solid var(--border-accent); display: flex; gap: 12px; background: white;">
-              <textarea id="chatInput" placeholder="Your question..." disabled style="flex:1; height: 50px;"></textarea>
+              <textarea id="chatInput" placeholder="Your question..." disabled style="flex:1; height: 50px; resize: none;"></textarea>
               <button class="btn primary" id="sendBtn" disabled style="width: auto;">Send</button>
             </div>
           </div>
@@ -101,7 +103,7 @@
   <div id="limitModal">
     <div class="modal-content">
       <h2 style="font-family: Cinzel; color: var(--blue-deep);">Limit Reached</h2>
-      <p>Your free historical consultations are complete. Please acquire an offering to continue.</p>
+      <p>Your free historical consultations are complete. Please choose an offering to continue.</p>
       <button class="btn primary" onclick="buyPlan()">Go to Pricing</button>
       <button class="btn" style="margin-top:10px;" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
     </div>
@@ -126,7 +128,6 @@
         body: JSON.stringify({ characterId: selectedId, message: text })
       });
       
-      // THIS IS THE FIX: CHECK FOR 403 STATUS
       if (res.status === 403) {
         $("limitModal").style.display = "flex";
         return;
@@ -136,12 +137,16 @@
       if (data.reply) appendMessage("them", data.reply);
     }
 
+    // THE AUTO-SCROLL FIX
     function appendMessage(side, text) {
       const div = document.createElement("div");
       div.className = `bubble ${side}`;
       div.innerText = text;
-      $("chatLog").appendChild(div);
-      $("chatLog").scrollTop = $("chatLog").scrollHeight;
+      const chatLog = $("chatLog");
+      chatLog.appendChild(div);
+      
+      // Forces the scroll to the bottom every time a message is added
+      chatLog.scrollTop = chatLog.scrollHeight;
     }
 
     async function loadProfiles() {
@@ -150,7 +155,6 @@
       profiles.forEach(p => {
         const div = document.createElement("div");
         div.className = "pitem"; 
-        // Use the image from the server
         div.innerHTML = `<img src="${p.image}" alt=""> <span>${p.name}</span>`;
         div.onclick = () => {
           document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
@@ -158,7 +162,7 @@
           selectedId = p.id;
           $("chatTitle").innerText = p.name;
           $("chatLog").innerHTML = `<div class="bubble them">I am ${p.name}. What is on your mind?</div>`;
-          if (getToken()) { $("chatInput").disabled = false; $("sendBtn").disabled = false; }
+          if (getToken()) { $("chatInput").disabled = false; $("sendBtn").disabled = false; $("chatInput").focus(); }
         };
         $("profiles").appendChild(div);
       });
@@ -170,12 +174,12 @@
 
     $("loginBtn").onclick = async () => {
       const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("loginEmail").value, password: $("loginPassword").value }) });
-      if (res.ok) { const d = await res.json(); localStorage.setItem("jwt", d.token); location.reload(); } else { alert("Login failed."); }
+      if (res.ok) { const d = await res.json(); localStorage.setItem("jwt", d.token); location.reload(); } else { alert("Access Denied."); }
     };
 
     $("registerBtn").onclick = async () => {
       const res = await fetch("/api/register", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("regEmail").value, password: $("regPassword").value }) });
-      if (res.ok) { alert("Created. Please sign in."); $("tabLogin").click(); }
+      if (res.ok) { alert("Registration complete. Please sign in."); $("tabLogin").click(); }
     };
 
     $("tabLogin").onclick = () => { $("tabLogin").className="tab active"; $("tabRegister").className="tab"; $("loginPane").classList.remove("hide"); $("registerPane").classList.add("hide"); };
