@@ -22,8 +22,8 @@
 
     * { box-sizing: border-box; }
     body { margin: 0; color: var(--text-main); background-color: var(--bg-archive); font-family: "EB Garamond", serif; font-size: 19px; line-height: 1.7; }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 0px 20px 80px; }
-    body.logged-in .wrap { max-width: none; width: 100%; padding: 0 10px 40px; }
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 0px 20px 40px; }
+    body.logged-in .wrap { max-width: none; width: 100%; padding: 0 10px 20px; }
 
     header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; border-bottom: 1px solid var(--border-accent); margin-bottom: 40px; }
     .brand { display: flex; align-items: center; gap: 15px; }
@@ -41,32 +41,26 @@
     .btn { padding: 14px 28px; border-radius: 6px; font-family: "Cinzel", serif; cursor: pointer; border: 1px solid var(--gold-legend); background: transparent; color: var(--gold-legend); text-transform: uppercase; letter-spacing: 1px; width: 100%; }
     .btn.primary { background: var(--gold-legend); color: white; border: none; }
 
-    #limitModal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(30, 41, 59, 0.9); display: none; align-items: center; justify-content: center; z-index: 9999; }
-    .modal-content { background: white; padding: 40px; border-radius: 15px; max-width: 450px; text-align: center; border: 2px solid var(--gold-legend); }
-
-    .chat-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); height: 650px; }
-    body.logged-in .chat-shell { height: calc(100vh - 120px); }
+    .chat-shell { display: grid; grid-template-columns: 280px minmax(0, 1fr); height: 600px; }
+    body.logged-in .chat-shell { height: calc(100vh - 200px); }
     .sidebar { background: #faf9f7; border-right: 1px solid var(--border-accent); padding: 15px; overflow-y: auto; }
     
-    /* Updated Profile Item - Removed Image Styles */
     .pitem { display: flex; align-items: center; padding: 15px; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; background: white; font-family: "Cinzel", serif; font-size: 16px; }
     .pitem.active { border-color: var(--gold-legend); background: #fffdf9; color: var(--gold-legend); }
     
-    .chat-log { 
-        padding: 30px; 
-        display: flex; 
-        flex-direction: column; 
-        gap: 20px; 
-        overflow-y: scroll; 
-        height: 450px; 
-        background: #fff; 
-        scroll-behavior: smooth;
-    }
-    
+    .chat-log { padding: 30px; display: flex; flex-direction: column; gap: 20px; overflow-y: scroll; height: 100%; background: #fff; scroll-behavior: smooth; }
     .bubble { padding: 14px 18px; border-radius: 18px; max-width: 85%; font-size: 17px; word-wrap: break-word; }
     .bubble.them { background: #f8f6f2; align-self: flex-start; }
     .bubble.me { background: var(--blue-deep); color: white; align-self: flex-end; }
     .hide { display: none !important; }
+
+    /* Footer Styles */
+    footer { margin-top: 40px; padding: 30px 20px; border-top: 1px solid var(--border-accent); text-align: center; }
+    .footer-links { margin-bottom: 20px; }
+    .footer-links a { color: var(--text-muted); text-decoration: none; margin: 0 15px; font-size: 15px; font-family: "EB Garamond", serif; }
+    .footer-links a:hover { color: var(--gold-legend); }
+    .payment-icons { display: flex; justify-content: center; gap: 15px; align-items: center; opacity: 0.7; }
+    .payment-icons img { height: 24px; filter: grayscale(1); }
   </style>
 </head>
 
@@ -107,15 +101,19 @@
         </div>
       </div>
     </div>
-  </div>
 
-  <div id="limitModal">
-    <div class="modal-content">
-      <h2 style="font-family: Cinzel; color: var(--blue-deep);">Limit Reached</h2>
-      <p>Your free historical consultations are complete. Please choose an offering to continue.</p>
-      <button class="btn primary" onclick="buyPlan()">Go to Pricing</button>
-      <button class="btn" style="margin-top:10px;" onclick="document.getElementById('limitModal').style.display='none'">Dismiss</button>
-    </div>
+    <footer>
+      <div class="footer-links">
+        <a href="/contact">Contact</a>
+        <a href="/terms">Terms & Conditions</a>
+        <a href="/privacy-policy">Privacy Policy</a>
+        <a href="/refund-policy">Refund Policy</a>
+      </div>
+      <div class="payment-icons">
+        <img src="https://logos-world.net/wp-content/uploads/2020/04/Visa-Symbol.png" alt="Visa">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard">
+      </div>
+    </footer>
   </div>
 
   <script>
@@ -127,21 +125,14 @@
     async function sendMessage() {
       const text = $("chatInput").value.trim();
       if (!text || !selectedId) return;
-
       appendMessage("me", text);
       $("chatInput").value = "";
-      
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
         body: JSON.stringify({ characterId: selectedId, message: text })
       });
-      
-      if (res.status === 403) {
-        $("limitModal").style.display = "flex";
-        return;
-      }
-
+      if (res.status === 403) { alert("Limit Reached. Please select an offering."); return; }
       const data = await res.json();
       if (data.reply) appendMessage("them", data.reply);
     }
@@ -152,20 +143,16 @@
       div.innerText = text;
       const log = $("chatLog");
       log.appendChild(div);
-      
-      setTimeout(() => {
-        log.scrollTop = log.scrollHeight;
-      }, 50);
+      setTimeout(() => { log.scrollTop = log.scrollHeight; }, 50);
     }
 
-    // Removed image logic from the profile loading loop
     async function loadProfiles() {
       const res = await fetch("/api/profiles");
       const profiles = await res.json();
       profiles.forEach(p => {
         const div = document.createElement("div");
         div.className = "pitem"; 
-        div.innerHTML = `<span>${p.name}</span>`; // Only name is displayed
+        div.innerHTML = `<span>${p.name}</span>`;
         div.onclick = () => {
           document.querySelectorAll(".pitem").forEach(i => i.classList.remove("active"));
           div.classList.add("active");
@@ -178,7 +165,7 @@
       });
     }
 
-    document.getElementById("logoutBtn").onclick = () => { localStorage.removeItem("jwt"); window.location.href = "/"; };
+    $("logoutBtn").onclick = () => { localStorage.removeItem("jwt"); location.reload(); };
     $("sendBtn").onclick = sendMessage;
     $("chatInput").onkeypress = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
@@ -196,7 +183,6 @@
     $("tabRegister").onclick = () => { $("tabRegister").className="tab active"; $("tabLogin").className="tab"; $("registerPane").classList.remove("hide"); $("loginPane").classList.add("hide"); };
 
     function buyPlan() { window.location.href = "/pricing.html"; }
-
     if (getToken()) { document.body.classList.add("logged-in"); $("authSection").classList.add("hide"); $("logoutBtn").style.display = "block"; }
     loadProfiles();
   </script>
