@@ -172,16 +172,32 @@ body.logged-in .chat-shell {
       </div>
     </footer>
   </div>
+<div class="limit-modal" id="limitModal">
+  <div class="limit-box">
+    <h2>You’re Out of Free Messages</h2>
+    <p>
+      You have used your 3 free messages. Please select a plan to continue
+      your conversations with Legend Speak.
+    </p>
+    <button class="btn primary" onclick="window.location.href='/pricing.html'">
+      Select Your Plan
+    </button>
+    <button class="btn" style="margin-top:12px;" onclick="closeLimitModal()">
+      Not Now
+    </button>
+  </div>
+</div>
 
+  <script>
 function showLimitModal() {
   $("limitModal").classList.add("show");
+  $("chatInput").disabled = true;
+  $("sendBtn").disabled = true;
 }
 
 function closeLimitModal() {
   $("limitModal").classList.remove("show");
 }
-
-  <script>
     const $ = (id) => document.getElementById(id);
     let selectedId = null;
 
@@ -198,19 +214,20 @@ function closeLimitModal() {
         body: JSON.stringify({ characterId: selectedId, message: text })
       });
       if (res.status === 403) {
-  showLimitModal();
+  const data = await res.json().catch(() => ({}));
+
+  if (data.error === "LIMIT_REACHED") {
+    showLimitModal();
+    return;
+  }
+
+  alert(data.message || "Access denied.");
   return;
 }
       const data = await res.json();
       if (data.reply) appendMessage("them", data.reply);
 
-let freeCount = parseInt(localStorage.getItem("freeMessageCount") || "0");
-freeCount++;
-localStorage.setItem("freeMessageCount", freeCount);
 
-if (freeCount >= 3) {
-  showLimitModal();
-}
     }
 
     function appendMessage(side, text) {
