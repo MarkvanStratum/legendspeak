@@ -203,6 +203,14 @@ function closeLimitModal() {
 }
       const data = await res.json();
       if (data.reply) appendMessage("them", data.reply);
+
+let freeCount = parseInt(localStorage.getItem("freeMessageCount") || "0");
+freeCount++;
+localStorage.setItem("freeMessageCount", freeCount);
+
+if (freeCount >= 3) {
+  showLimitModal();
+}
     }
 
     function appendMessage(side, text) {
