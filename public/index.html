@@ -106,7 +106,7 @@ body.logged-in .chat-shell {
         <div class="card" style="padding: 30px;">
           <h4 style="font-family: Cinzel; color: var(--gold-legend);">Historical Offerings</h4>
           <button class="btn" onclick="buyPlan()">Scholar Access (£29.95)</button>
-          <button class="btn primary" onclick="buyPlan()" style="margin-top:10px;">Eternal Archive (£49.95)</button>
+<button class="btn primary" onclick="buyPlan()" style="margin-top:10px;">Eternal Archive (£49.95)</button>
         </div>
       </div>
 
@@ -205,7 +205,13 @@ body.logged-in .chat-shell {
     $("tabLogin").onclick = () => { $("tabLogin").className="tab active"; $("tabRegister").className="tab"; $("loginPane").classList.remove("hide"); $("registerPane").classList.add("hide"); };
     $("tabRegister").onclick = () => { $("tabRegister").className="tab active"; $("tabLogin").className="tab"; $("registerPane").classList.remove("hide"); $("loginPane").classList.add("hide"); };
 
-    function buyPlan() { window.location.href = "/pricing.html"; }
+    function goToPricing() {
+  window.location.href = "/pricing.html";
+}
+
+function goToCheckout(planName) {
+  window.location.href = `/checkout.html?plan=${planName}`;
+}
     if (getToken()) { document.body.classList.add("logged-in"); $("authSection").classList.add("hide"); $("logoutBtn").style.display = "block"; }
     loadProfiles();
   </script>
