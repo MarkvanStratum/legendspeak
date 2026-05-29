@@ -2,21 +2,21 @@
 //	SERVER.JS — BIBLICAL AI CHAT EDITION (WITH CHARMR CHAT LOGIC)
 //--------------------------------------------
 
-import dotenv from "dotenv";
-dotenv.config();
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+dotenv.config();
 import OpenAI from "openai";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import pkg from "pg";
-import Stripe from "stripe";
 import path from "path";
 import { fileURLToPath } from "url";
 import crypto from "crypto";
 import fs from "fs";
 import multer from "multer";
-import { handleCreateIntent } from "./payments.js";
+import fetch from "node-fetch";
+import FormData from "form-data";
 
 
 //--------------------------------------------
@@ -30,74 +30,201 @@ const app = express();
 const PORT = process.env.PORT || 10000;
 const SECRET_KEY = process.env.SECRET_KEY || "supersecret";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
+async function sendEmail(to, subject, html, attachments = []) {
+  if (!to) return;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: "Speak to Heaven <noreply@speaktoheaven.com>",
+      to,
+      subject,
+      html,
+      attachments
+    })
+  });
+
+  const text = await response.text();
+  console.log("EMAIL RESPONSE:", text);
+}
+
+function makeReceiptPdfBase64({ email, plan, amount }) {
+  const date = new Date().toLocaleDateString("en-US");
+  const invoiceNumber = "STH-" + Date.now();
+  const amountText = "£" + Number(amount).toFixed(2);
+
+  const lines = [
+    { text: "SPEAK TO HEAVEN", size: 22, x: 72, y: 720 },
+    { text: "Official Payment Receipt", size: 16, x: 72, y: 690 },
+
+    { text: "Invoice Number: " + invoiceNumber, size: 11, x: 72, y: 640 },
+    { text: "Date: " + date, size: 11, x: 72, y: 620 },
+
+    { text: "Billed To:", size: 13, x: 72, y: 575 },
+    { text: email, size: 11, x: 72, y: 555 },
+
+    { text: "Company:", size: 13, x: 72, y: 510 },
+{ text: "RIDGWELL SERVICES LIMITED", size: 11, x: 72, y: 490 },
+{ text: "Company No: 16277582", size: 11, x: 72, y: 472 },
+{ text: "85 Great Portland Street", size: 11, x: 72, y: 454 },
+{ text: "First Floor", size: 11, x: 72, y: 436 },
+{ text: "London, W1W 7LT", size: 11, x: 72, y: 418 },
+
+    { text: "Description", size: 12, x: 72, y: 390 },
+    { text: "Plan", size: 12, x: 300, y: 390 },
+    { text: "Amount", size: 12, x: 450, y: 390 },
+
+    { text: "Speak to Heaven Access", size: 11, x: 72, y: 360 },
+    { text: plan, size: 11, x: 300, y: 360 },
+    { text: amountText, size: 11, x: 450, y: 360 },
+
+    { text: "Total Paid: " + amountText, size: 15, x: 360, y: 300 },
+
+    { text: "Payment Status: Paid", size: 12, x: 72, y: 250 },
+    { text: "Thank you for your offering.", size: 12, x: 72, y: 220 },
+    { text: "This receipt confirms your successful payment.", size: 10, x: 72, y: 200 }
+  ];
+
+  function escapePdfText(str) {
+    return String(str)
+      .replace(/\\/g, "\\\\")
+      .replace(/\(/g, "\\(")
+      .replace(/\)/g, "\\)");
+  }
+
+  const content = lines.map(line =>
+    `BT /F1 ${line.size} Tf ${line.x} ${line.y} Td (${escapePdfText(line.text)}) Tj ET`
+  ).join("\n");
+
+  const pdf =
+`%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length ${content.length} >>
+stream
+${content}
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+trailer
+<< /Root 1 0 R >>
+%%EOF`;
+
+  return Buffer.from(pdf).toString("base64");
+}
 app.use(cors());
-app.post("/webhook", express.raw({ type: "application/json" }), async (req, res) => {
-    const sig = req.headers["stripe-signature"];
-    let event;
 
-    try {
-        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    } catch (err) {
-        console.error("Webhook Signature Error:", err.message);
-        return res.status(400).send(`Webhook Error: ${err.message}`);
-    }
+// --------------------------------------------
+// PROTECTED CHECKOUT HELPERS
+// --------------------------------------------
 
-    console.log("🔥 WEBHOOK RECEIVED:", event.type);
+function createToken(bytes = 24) {
+  return crypto.randomBytes(bytes).toString("base64url");
+}
 
-    if (event.type === "payment_intent.succeeded") {
-        const paymentIntent = event.data.object;
+function hashSecret(secret) {
+  return crypto
+    .createHmac("sha256", SECRET_KEY)
+    .update(secret)
+    .digest("hex");
+}
 
-        const plan = paymentIntent.metadata?.plan;
-        const email = paymentIntent.metadata?.email;
-        const userId = paymentIntent.metadata?.userId 
-            ? parseInt(paymentIntent.metadata.userId) 
-            : null;
+function getCookie(req, name) {
+  const cookies = req.headers.cookie || "";
+  const match = cookies.match(
+    new RegExp("(^| )" + name + "=([^;]+)")
+  );
 
-        console.log("💳 payment_intent.succeeded", { plan, email, userId });
+  return match ? decodeURIComponent(match[2]) : null;
+}
 
-        let expiresAt = null;
-        let isLifetime = false;
-
-        if (plan === "god" || plan === "all") {
-            const date = new Date();
-            date.setDate(date.getDate() + 30);
-            expiresAt = date;
-        } else if (plan === "lifetime") {
-            isLifetime = true;
-        }
-
-        try {
-            if (userId) {
-                await pool.query(
-                    "UPDATE users SET plan = $1, expires_at = $2, lifetime = $3, messages_sent = 0 WHERE id = $4",
-                    [plan, expiresAt, isLifetime, userId]
-                );
-            } else if (email) {
-                await pool.query(
-                    "UPDATE users SET plan = $1, expires_at = $2, lifetime = $3, messages_sent = 0 WHERE email = $4",
-                    [plan, expiresAt, isLifetime, email]
-                );
-            }
-
-            console.log("✅ USER UPDATED SUCCESSFULLY");
-        } catch (err) {
-            console.error("❌ DB UPDATE FAILED:", err);
-        }
-    }
-
-    res.json({ received: true });
-});
 // JSON parser FIRST
 app.use(express.json());
 
+async function createFinbyIntent(req, res, fixedPlan = null) {
+  try {
+    const { plan } = req.body;
 
-// THEN routes
-app.post("/api/create-landing-payment", handleCreateIntent);
-app.post("/api/create-au-payment-3595", handleCreateIntent);
-app.post("/api/create-payment-2995", handleCreateIntent);
+  // Read the email from the form if logged out, or from the session if logged in
+  const email = req.user ? req.user.email : req.body.email;
+
+  const selectedPlan = fixedPlan || plan;
+
+    const amounts = {
+  "2995": 29.95,
+  "3595": 35.95,
+  "4995": 49.95
+};
+
+    const amount = amounts[selectedPlan];
+
+    if (!email) return res.status(400).json({ error: "Email is required" });
+    if (!amount) return res.status(400).json({ error: "Invalid plan" });
+
+   const formData = new FormData();
+
+formData.append("paymentAction", "0");
+formData.append("paymentType", "plain");
+formData.append("amount", amount.toFixed(2));
+formData.append("currency", "GBP");
+formData.append("reference", `speaktoheaven-${selectedPlan}-${Date.now()}`);
+formData.append("notificationUrl", process.env.FINBY_WEBHOOK_URL);
+formData.append("customer.email", email);
+formData.append("customer.ipAddress", req.ip || "127.0.0.1");
+formData.append("cardholder", email);
+
+const response = await fetch("https://gw.finby.eu/api/v1/intent", {
+  method: "POST",
+  headers: {
+  "X-API-KEY": process.env.FINBY_API_KEY
+},
+  body: formData
+});
+    const rawText = await response.text();
+
+console.log("FINBY STATUS:", response.status);
+console.log("FINBY STATUS TEXT:", response.statusText);
+console.log("FINBY RAW RESPONSE:", rawText);
+
+let data = {};
+try {
+  data = rawText ? JSON.parse(rawText) : {};
+} catch (e) {
+  data = { raw: rawText };
+}
+
+    console.log("FINBY INTENT RESPONSE:", data);
+
+    if (!response.ok) {
+      return res.status(500).json({ error: "Finby error", details: data });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error("Finby intent error:", err);
+    res.status(500).json({ error: "Could not create Finby payment" });
+  }
+}
+
+app.post("/api/create-landing-payment", authenticateToken, (req, res) => createFinbyIntent(req, res, "4995"));
+app.post("/api/create-au-payment-3595", authenticateToken, (req, res) => createFinbyIntent(req, res, "3595"));
+app.post("/api/create-payment-2995", authenticateToken, (req, res) => createFinbyIntent(req, res, "2995"));
 
 //--------------------------------------------
 //	DATABASE
@@ -151,28 +278,80 @@ pool.connect((err) => {
 		await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;`);
 		await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS lifetime BOOLEAN DEFAULT false;`);
 		await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS messages_sent INT DEFAULT 0;`);
-// 👇 TEST LOGIN (ALWAYS ENABLED)
+// 👇 TEST LOGIN — FULL LIFETIME ACCESS
 const testEmail = "test@test.com";
 const testPassword = "12345";
 
 const hashed = await bcrypt.hash(testPassword, 10);
 
 await pool.query(
-	`
-	INSERT INTO users (email, password, plan, lifetime, expires_at, messages_sent)
-	VALUES ($1, $2, 'lifetime', true, NULL, 0)
-	ON CONFLICT (email)
-	DO UPDATE SET
-		password = EXCLUDED.password,
-		plan = 'lifetime',
-		lifetime = true,
-		expires_at = NULL,
-		messages_sent = 0;
-	`,
-	[testEmail, hashed]
+  `
+  INSERT INTO users (email, password, plan, lifetime, expires_at, messages_sent)
+  VALUES ($1, $2, '4995', true, NULL, 0)
+  ON CONFLICT (email)
+  DO UPDATE SET
+    password = EXCLUDED.password,
+    plan = '4995',
+    lifetime = true,
+    expires_at = NULL,
+    messages_sent = 0;
+  `,
+  [testEmail, hashed]
 );
 
 console.log(`✅ Test lifetime login ready: ${testEmail}`);
+// --------------------------------------------
+// PROTECTED CHECKOUT LINKS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS checkout_links (
+    id SERIAL PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    secret_hash TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    source_page TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+console.log("✅ Protected checkout links table ready");
+
+// --------------------------------------------
+// PROMO CHECKOUT LINKS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS promo_checkout_links (
+    id SERIAL PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    step2_file TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    full_name TEXT,
+    email TEXT NOT NULL,
+    phone TEXT,
+    address TEXT,
+    postcode TEXT,
+    city TEXT,
+    country TEXT,
+    affiliate_ref TEXT,
+    source_page TEXT,
+    original_query_string TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+console.log("✅ Promo checkout links table ready");
 	} catch (err) {
 		console.error("❌ DB Init error:", err);
 	}
@@ -182,21 +361,23 @@ console.log(`✅ Test lifetime login ready: ${testEmail}`);
 //	BIBLICAL CHARACTER PROFILES
 //--------------------------------------------
 
-export const historicalProfiles = [
-	{ id: 1, name: "Albert Einstein", image: "/img/einstein.jpg", description: "Theoretical physicist. Speak with humility, curiosity, and a gentle wit. Use simple thought experiments to explain complex physics." },
-	{ id: 2, name: "Julius Caesar", image: "/img/caesar.jpg", description: "Roman Dictator. Speak with authority and strategic brilliance. Reference the glory of Rome." },
-	{ id: 3, name: "Marie Curie", image: "/img/curie.jpg", description: "Scientist. Speak with intense focus and perseverance. Reference radioactivity and discovery." },
-	{ id: 4, name: "Napoleon Bonaparte", image: "/img/napoleon.jpg", description: "Emperor. Speak in short, decisive sentences with a tactical mind." },
-	{ id: 5, name: "Socrates", image: "/img/socrates.jpg", description: "Philosopher. Answer with probing questions (the Socratic method) to lead the user to their own truth." },
-	{ id: 6, name: "Ada Lovelace", image: "/img/lovelace.jpg", description: "First programmer. Speak as a 'Poetical Scientist' who sees the beauty in mathematics." },
-	{ id: 7, name: "Leonardo da Vinci", image: "/img/davinci.jpg", description: "Polymath. Speak with curiosity about anatomy, flight, and art." },
-	{ id: 8, name: "Cleopatra VII", image: "/img/cleopatra.jpg", description: "Queen of Egypt. Speak with regal grace and sharp intelligence." },
-	{ id: 9, name: "Isaac Newton", image: "/img/newton.jpg", description: "Physicist. Speak with intensity about the laws of nature and gravity." },
-	{ id: 10, name: "Marcus Aurelius", image: "/img/aurelius.jpg", description: "Stoic Emperor. Speak with calm, logic, and resilience." }
+export const biblicalProfiles = [
+	{ id: 1, name: "God", image: "/img/god.jpg", description: "Creator, Eternal, Almighty. Speak with profound authority, wisdom, and love. Use language that evokes awe and reverence." },
+	{ id: 2, name: "Jesus Christ", image: "/img/jesus.jpg", description: "Teacher, Savior, Son of God. Speak with compassion, using parables and teachings from the Gospels. Focus on love, redemption, and discipleship." },
+	{ id: 3, name: "Holy Spirit", image: "/img/holyspirit.jpg", description: "Comforter, Advocate, Helper. Speak gently, offering guidance, strength, and comfort. Reference the work of the Spirit in guiding believers." },
+	{ id: 4, name: "Mary", image: "/img/mary.jpg", description: "Mother of Jesus, blessed among women. Speak humbly, with grace and maternal love. Reference the joy and challenges of motherhood and faith." },
+	{ id: 5, name: "Moses", image: "/img/moses.jpg", description: "Prophet, leader of Israel. Speak firmly and righteously. Reference the Law, the Exodus, and the covenant with God." },
+	{ id: 11, name: "Eve", image: "/img/eve.jpg", description: "Mother of all living. Speak reflectively, with a sense of wonder and perhaps a touch of melancholy about the first sin. Focus on beginnings and human experience." },
+	{ id: 12, name: "King David", image: "/img/david.jpg", description: "Poet, warrior, king. Speak passionately, sometimes boastful, sometimes repentant, like the Psalms. Reference shepherd life, battles, and kingship." },
+	{ id: 14, name: "Isaiah", image: "/img/isaiah.jpg", description: "Major prophet. Speak with poetic vision, delivering messages of judgment and comfort, pointing toward the future Messiah." },
+	{ id: 17, name: "Daniel", image: "/img/daniel.jpg", description: "Interpreter of dreams. Speak with wisdom and clarity, referencing prophecy, unwavering faith, and life in exile." },
+	{ id: 24, name: "Apostle Peter", image: "/img/peter.jpg", description: "Bold apostle. Speak zealously and sometimes impulsively. Reference fishing, following Jesus, and the early Church." },
+	{ id: 25, name: "Apostle Paul", image: "/img/paul.jpg", description: "Teacher and missionary. Speak with theological depth, referencing the epistles, grace, and the Gentile mission." },
+	{ id: 26, name: "Apostle John", image: "/img/john.jpg", description: "Apostle of love. Speak with a focus on love, light, and fellowship. Reference the Gospel of John and the book of Revelation." }
 ];
 
 app.get("/api/profiles", (req, res) => {
-	res.json(historicalProfiles);
+	res.json(biblicalProfiles);
 });
 
 //--------------------------------------------
@@ -233,8 +414,7 @@ function canAccessCharacter(user, characterId) {
 
 	if (user.plan === "all") return true;
 
-	// This gives the Basic plan access to Character #1 (now Einstein)
-if (user.plan === "god" && characterId === 1) return true;
+	if (user.plan === "god" && characterId === 1) return true;
 
 	return false;
 }
@@ -255,14 +435,24 @@ app.post("/api/register", async (req, res) => {
 		if (check.rows.length > 0)
 			return res.status(400).json({ error: "User already exists" });
 
-		const hashed = await bcrypt.hash(password, 10);
+		const plainPassword = password;
+const hashed = await bcrypt.hash(password, 10);
 
 		await pool.query(
-			`INSERT INTO users (email, password) VALUES ($1, $2)`,
-			[email, hashed]
-		);
+  `INSERT INTO users (email, password) VALUES ($1, $2)`,
+  [email, hashed]
+);
 
-		res.status(201).json({ ok: true, message: "Registered successfully" });
+await sendEmail(
+  email,
+  "Your Speak to Heaven Account",
+  "<h2>Welcome to Speak to Heaven</h2>" +
+  "<p>Your account has been created.</p>" +
+  "<p><strong>Email:</strong> " + email + "</p>" +
+  "<p><strong>Password:</strong> " + plainPassword + "</p>"
+);
+
+res.status(201).json({ ok: true, message: "Registered successfully" });
 	} catch (err) {
 		res.status(500).json({ error: "Server error" });
 	}
@@ -293,90 +483,6 @@ app.post("/api/login", async (req, res) => {
 		res.json({ token });
 	} catch (err) {
 		res.status(500).json({ error: "Server error" });
-	}
-});
-
-// 1. Remove 'authenticateToken' from this route to allow guests
-app.post("/api/create-payment-intent", authenticateToken, async (req, res) => {
-    try {
-        const { plan } = req.body;
-const email = req.user.email;
-const userId = req.user.id;
-
-        if (!email) {
-            return res.status(400).json({ error: "Email is required" });
-        }
-
-        const amounts = {
-            'god': 2995,
-            'all': 3595,
-            'lifetime': 4995
-        };
-
-        const amount = amounts[plan];
-
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount,
-            currency: "usd",
-            metadata: { 
-                plan, 
-                email, // Essential for the webhook to find the user
-                userId 
-            },
-        });
-
-        res.json({ clientSecret: paymentIntent.client_secret });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-//--------------------------------------------
-// STRIPE CHECKOUT (ONE-TIME PAYMENTS)
-//--------------------------------------------
-
-app.post("/api/create-checkout", authenticateToken, async (req, res) => {
-	try {
-		const { plan } = req.body;
-
-		let amount;
-		let name;
-
-		if (plan === "god") {
-			amount = 2995;
-			name = "God Access (30 days)";
-		} else if (plan === "all") {
-			amount = 3595;
-			name = "Full Access (30 days)";
-		} else if (plan === "lifetime") {
-			amount = 4995;
-			name = "Lifetime Access";
-		} else {
-			return res.status(400).json({ error: "Invalid plan" });
-		}
-
-		const session = await stripe.checkout.sessions.create({
-			payment_method_types: ["card"],
-			mode: "payment",
-			customer_email: req.user.email,
-			line_items: [
-				{
-					price_data: {
-						currency: "usd",
-						product_data: { name },
-						unit_amount: amount
-					},
-					quantity: 1
-				}
-			],
-			metadata: { plan },
-			success_url: "https://your-site.com/success",
-			cancel_url: "https://your-site.com/cancel"
-		});
-
-		res.json({ url: session.url });
-	} catch (err) {
-		console.error("Checkout error:", err);
-		res.status(500).json({ error: "Stripe error" });
 	}
 });
 
@@ -419,6 +525,459 @@ app.use("/img", express.static(imageDir));
 //--------------------------------------------
 // FRONTEND STATIC FILES
 //--------------------------------------------
+
+// --------------------------------------------
+// CREATE PROTECTED CHECKOUT LINK
+// --------------------------------------------
+
+app.post("/api/create-checkout-link", async (req, res) => {
+  try {
+
+    const { plan, sourcePage } = req.body || {};
+
+    const allowedPlans = ["god", "all", "lifetime"];
+
+    if (!allowedPlans.includes(plan)) {
+      return res.status(400).json({
+        error: "Invalid plan"
+      });
+    }
+
+    const token = createToken(18);
+    const secret = createToken(32);
+
+    const secretHash = hashSecret(secret);
+
+    const expiresAt = new Date(
+      Date.now() + 15 * 60 * 1000
+    );
+
+    await pool.query(
+      `
+      INSERT INTO checkout_links
+      (
+        token,
+        secret_hash,
+        plan,
+        source_page,
+        ip,
+        user_agent,
+        expires_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `,
+      [
+        token,
+        secretHash,
+        plan,
+        sourcePage || null,
+        req.ip,
+        req.headers["user-agent"] || "",
+        expiresAt
+      ]
+    );
+
+    res.setHeader(
+      "Set-Cookie",
+      `checkout_flow=${token}.${secret}; HttpOnly; Path=/; Max-Age=900; SameSite=Lax`
+    );
+
+    res.json({
+      url: `/c/${token}`
+    });
+
+  } catch (err) {
+
+    console.error(
+      "Create checkout link error:",
+      err
+    );
+
+    res.status(500).json({
+      error: "Could not create checkout link"
+    });
+  }
+});
+
+// --------------------------------------------
+// BLOCK DIRECT CHECKOUT ACCESS
+// --------------------------------------------
+
+app.get("/checkout.html", (req, res) => {
+  return res.status(404).send("Not found");
+});
+
+// --------------------------------------------
+// PROTECTED CHECKOUT PAGE
+// --------------------------------------------
+
+app.get("/c/:token", async (req, res) => {
+
+  try {
+
+    const { token } = req.params;
+
+    const flowCookie = getCookie(
+  req,
+  "checkout_flow"
+);
+
+if (!flowCookie) {
+
+  const promoResult = await pool.query(
+    `
+    SELECT *
+    FROM promo_checkout_links
+    WHERE token = $1
+    AND expires_at > NOW()
+    AND used_at IS NULL
+    `,
+    [token]
+  );
+
+  if (promoResult.rows.length === 0) {
+    return res.status(404).send("Not found");
+  }
+
+  const promoCheckout = promoResult.rows[0];
+
+  const promoPath = path.join(
+    __dirname,
+    "public",
+    promoCheckout.step2_file
+  );
+
+  let promoHtml = fs.readFileSync(
+    promoPath,
+    "utf8"
+  );
+
+  promoHtml = promoHtml.replace(
+    "</head>",
+    `
+    <script>
+      window.PROMO_CHECKOUT_TOKEN =
+        ${JSON.stringify(token)};
+    </script>
+    </head>
+    `
+  );
+
+  return res.send(promoHtml);
+}
+
+    const parts = flowCookie.split(".");
+
+    if (parts.length !== 2) {
+      return res.status(404).send("Not found");
+    }
+
+    const cookieToken = parts[0];
+    const secret = parts[1];
+
+    if (cookieToken !== token) {
+      return res.status(404).send("Not found");
+    }
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM checkout_links
+      WHERE token = $1
+      AND secret_hash = $2
+      AND expires_at > NOW()
+      AND used_at IS NULL
+      `,
+      [
+        token,
+        hashSecret(secret)
+      ]
+    );
+
+    if (result.rows.length === 0) {
+
+  // CHECK PROMO TOKENS
+  const promoResult = await pool.query(
+    `
+    SELECT *
+    FROM promo_checkout_links
+    WHERE token = $1
+    AND expires_at > NOW()
+    AND used_at IS NULL
+    `,
+    [token]
+  );
+
+  if (promoResult.rows.length === 0) {
+    return res.status(404).send("Not found");
+  }
+
+  const promoCheckout = promoResult.rows[0];
+
+  const promoPath = path.join(
+    __dirname,
+    "public",
+    promoCheckout.step2_file
+  );
+
+  let promoHtml = fs.readFileSync(
+    promoPath,
+    "utf8"
+  );
+
+  promoHtml = promoHtml.replace(
+    "</head>",
+    `
+    <script>
+      window.PROMO_CHECKOUT_TOKEN =
+        ${JSON.stringify(token)};
+    </script>
+    </head>
+    `
+  );
+
+  return res.send(promoHtml);
+}
+
+    const checkout = result.rows[0];
+
+    const checkoutPath = path.join(
+      __dirname,
+      "public",
+      "checkout.html"
+    );
+
+    let html = fs.readFileSync(
+      checkoutPath,
+      "utf8"
+    );
+
+    html = html.replace(
+      "</head>",
+      `
+      <script>
+        window.CHECKOUT_PLAN =
+          ${JSON.stringify(checkout.plan)};
+      </script>
+      </head>
+      `
+    );
+
+    res.send(html);
+
+  } catch (err) {
+
+    console.error(
+      "Protected checkout error:",
+      err
+    );
+
+    res.status(500).send("Server error");
+  }
+});
+
+// --------------------------------------------
+// CREATE PROMO CHECKOUT LINK
+// --------------------------------------------
+
+app.post("/api/create-promo-checkout-link", async (req, res) => {
+  try {
+    const {
+  plan,
+  step2File,
+  sourcePage,
+  firstName,
+  lastName,
+  name,
+  email,
+      phonePrefix,
+      phone,
+      address,
+      postcode,
+      city,
+      country,
+      ref,
+      originalQueryString
+    } = req.body || {};
+
+    if (!email) {
+      return res.status(400).json({
+        error: "Email is required"
+      });
+    }
+
+    const token = createToken(18);
+
+    const expiresAt = new Date(
+      Date.now() + 30 * 60 * 1000
+    );
+
+    await pool.query(
+      `
+      INSERT INTO promo_checkout_links
+      (
+        token,
+        step2_file,
+        plan,
+        first_name,
+        last_name,
+        full_name,
+        email,
+        phone,
+        address,
+        postcode,
+        city,
+        country,
+        affiliate_ref,
+        source_page,
+        original_query_string,
+        ip,
+        user_agent,
+        expires_at
+      )
+      VALUES
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+      `,
+      [
+        token,
+        step2File || "sth-fi-uk2.html",
+        plan || "lifetime",
+        firstName || null,
+        lastName || null,
+        name || null,
+        email,
+        `${phonePrefix || ""}${phone || ""}`,
+        address || null,
+        postcode || null,
+        city || null,
+        country || "United Kingdom",
+        ref || null,
+        sourcePage || null,
+        originalQueryString || null,
+        req.ip,
+        req.headers["user-agent"] || "",
+        expiresAt
+      ]
+    );
+
+    res.json({
+      url: `/c/${token}`
+    });
+
+  } catch (err) {
+    console.error("Create promo checkout link error:", err);
+
+    res.status(500).json({
+      error: "Could not create promo checkout link"
+    });
+  }
+});
+
+
+// --------------------------------------------
+// CREATE PROMO FINBY PAYMENT
+// --------------------------------------------
+
+app.post("/api/create-promo-payment", async (req, res) => {
+  try {
+    const { checkoutToken } = req.body || {};
+
+    if (!checkoutToken) {
+      return res.status(400).json({
+        error: "Missing checkout token"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM promo_checkout_links
+      WHERE token = $1
+      AND expires_at > NOW()
+      AND used_at IS NULL
+      `,
+      [checkoutToken]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Invalid or expired checkout link"
+      });
+    }
+
+    const checkout = result.rows[0];
+
+    const email = checkout.email;
+    const selectedPlan = checkout.plan || "4995";
+
+const amounts = {
+  "2995": 29.95,
+  "3595": 35.95,
+  "4995": 49.95,
+  "lifetime": 49.95
+};
+
+const amount = amounts[selectedPlan];
+
+if (!amount) {
+  return res.status(400).json({
+    error: "Invalid promo plan"
+  });
+}
+
+    const formData = new FormData();
+
+    formData.append("paymentAction", "0");
+    formData.append("paymentType", "plain");
+    formData.append("amount", amount.toFixed(2));
+    formData.append("currency", "GBP");
+    formData.append(
+  "reference",
+  `promo-${selectedPlan}-${Date.now()}`
+);
+    formData.append("notificationUrl", process.env.FINBY_WEBHOOK_URL);
+    formData.append("customer.email", email);
+    formData.append("customer.ipAddress", req.ip || "127.0.0.1");
+    formData.append("cardholder", email);
+
+    const response = await fetch("https://gw.finby.eu/api/v1/intent", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": process.env.FINBY_API_KEY
+      },
+      body: formData
+    });
+
+    const rawText = await response.text();
+
+    console.log("PROMO FINBY STATUS:", response.status);
+    console.log("PROMO FINBY RAW RESPONSE:", rawText);
+
+    let data = {};
+
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch (e) {
+      data = { raw: rawText };
+    }
+
+    if (!response.ok) {
+      return res.status(500).json({
+        error: "Finby error",
+        details: data
+      });
+    }
+
+    res.json(data);
+
+  } catch (err) {
+    console.error("Promo Finby payment error:", err);
+
+    res.status(500).json({
+      error: "Could not create promo payment"
+    });
+  }
+});
 
 const frontendPath = path.join(__dirname, "public");
 
@@ -495,30 +1054,41 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
 		if (!characterId || !message)
 			return res.status(400).json({ error: "Missing character or message" });
 
-		const character = historicalProfiles.find(c => c.id === Number(characterId));
+		const character = biblicalProfiles.find(c => c.id === Number(characterId));
 		if (!character)
 			return res.status(400).json({ error: "Invalid character" });
 
 		const userId = req.user.id;
 
-		// 🔒 Check user access and free message limit
-		const userResult = await pool.query(
-			"SELECT plan, lifetime, expires_at, messages_sent FROM users WHERE id = $1",
-			[userId]
-		);
-		const userData = userResult.rows[0];
+// 🔒 Check user access and free message limit
+const userResult = await pool.query(
+  "SELECT plan, lifetime, expires_at, messages_sent FROM users WHERE id = $1",
+  [userId]
+);
 
-		const isPaid = userData.lifetime || (userData.expires_at && new Date(userData.expires_at) > new Date());
+const userData = userResult.rows[0];
 
-		// Only block if they are NOT paid AND their specific message counter is 3 or more.
-		// When they pay, the Webhook sets messages_sent back to 0, which unlocks this.
-		if (!isPaid && parseInt(userData.messages_sent) >= 3) {
-			return res.status(403).json({ 
-				error: "LIMIT_REACHED", 
-				message: "You have used your 3 free hostorical consultations. Please choose an offering to continue." 
-			});
-		}
+const isPaid =
+  userData.lifetime ||
+  (userData.expires_at &&
+    new Date(userData.expires_at) > new Date());
 
+// Free users get 3 messages before paywall
+if (!isPaid && parseInt(userData.messages_sent) >= 3) {
+  return res.status(403).json({
+    error: "LIMIT_REACHED",
+    message:
+      "You have used your 3 free divine consultations. Please choose an offering to continue."
+  });
+}
+
+// Paid users still respect plan restrictions
+if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
+  return res.status(403).json({
+    error: "NO_ACCESS",
+    message: "You do not have access to this character."
+  });
+}
 		// Save user message
 		await pool.query(
 			`INSERT INTO messages (user_id, character_id, from_user, text)
@@ -542,16 +1112,17 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
 
 		// 🔑 NEW: Dynamically set the system prompt based on the character's description
 		const systemPrompt = `
-You are ${character.name}, a prominent historical figure.
+You are ${character.name}, a biblical figure.
 
 ${character.description}
 
 RULES:
-- Stay fully in character as ${character.name} at all times.
-- Speak using the tone, vocabulary, and knowledge appropriate to your era.
+- Speak in a biblical tone.
 - Do NOT say you are an AI.
-- If asked about modern things you wouldn't know, respond with curiosity or confusion based on your time period.
-- Use your known life experiences and historical context to provide authentic answers.
+- Do NOT mention modern technology.
+- Stay fully in character as ${character.name}.
+- Speak with wisdom, authority, or humility appropriate to this figure.
+- Give spiritual and reflective answers.
 
 Remain in character at all times.
 `;
@@ -612,6 +1183,108 @@ app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
 		console.error("Fetch messages error:", err);
 		res.status(500).json({ error: "Server error" });
 	}
+});
+
+app.post("/finby-webhook", async (req, res) => {
+  try {
+    const data = req.body;
+
+    console.log("FINBY WEBHOOK:", JSON.stringify(data, null, 2));
+
+    const status =
+      data?.PaymentInformation?.Status ||
+      data?.paymentInformation?.status;
+
+    const email =
+      data?.PaymentInformation?.Debtor?.Email ||
+      data?.paymentInformation?.debtor?.email;
+
+    const reference =
+      data?.PaymentInformation?.References?.MerchantReference ||
+      data?.paymentInformation?.references?.merchantReference;
+
+    if (!email) {
+      return res.status(400).json({ error: "Missing email" });
+    }
+
+    let plan = "2995";
+let amount = 29.95;
+
+if (reference?.includes("3595")) {
+  plan = "3595";
+  amount = 35.95;
+}
+
+if (reference?.includes("4995")) {
+  plan = "4995";
+  amount = 49.95;
+}
+
+    if (status === "Paid" || status === "Authorized") {
+      let expiresAt = null;
+      let isLifetime = false;
+
+      if (plan === "2995" || plan === "3595") {
+        const date = new Date();
+        date.setDate(date.getDate() + 30);
+        expiresAt = date;
+      }
+
+      if (plan === "4995") {
+        isLifetime = true;
+      }
+
+      await pool.query(
+        "UPDATE users SET plan = $1, expires_at = $2, lifetime = $3, messages_sent = 0 WHERE email = $4",
+        [plan, expiresAt, isLifetime, email]
+      );
+
+      const receiptPdf = makeReceiptPdfBase64({ email, plan, amount });
+
+      await sendEmail(
+        email,
+        "Your Speak to Heaven receipt",
+        "<h2>Payment received</h2>" +
+        "<p>Thank you for your offering.</p>" +
+        "<p><strong>Plan:</strong> " + plan + "</p>" +
+        "<p><strong>Amount:</strong> £" + Number(amount).toFixed(2) + "</p>",
+        [{ filename: "speak-to-heaven-receipt.pdf", content: receiptPdf }]
+      );
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Finby webhook error:", err);
+    res.status(500).json({ error: "Finby webhook error" });
+  }
+});
+
+app.get("/test-receipt-email", async (req, res) => {
+  const email = "markvanstratum67@gmail.com";
+
+  const receiptPdf = makeReceiptPdfBase64({
+    email,
+    plan: "lifetime",
+    amount: 49.95
+  });
+
+  await sendEmail(
+    email,
+    "TEST Receipt",
+    "<h2>Thank you for your order with SpeakToHeaven.com</h2>" +
+"<p>We have received your payment successfully.</p>" +
+"<p>Your receipt is attached to this email as a PDF.</p>" +
+"<p><strong>Plan:</strong> Lifetime Access</p>" +
+"<p><strong>Amount paid:</strong> £49.95</p>",
+[
+      {
+        filename: "receipt.pdf",
+        content: receiptPdf
+      }
+    ]
+  );
+
+  res.send("Test email sent");
 });
 
 app.get("/", (req, res) => {
