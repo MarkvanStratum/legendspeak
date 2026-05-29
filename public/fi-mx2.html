@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Pago Seguro</title>
+
+<meta name="referrer" content="no-referrer">
+
+<script src="https://api.goaffpro.com/loader.js?shop=nzyvwvfbde"></script>
+<script type="text/javascript" src="https://gw.finby.eu/js/v1.js"></script>
+
+<style>
+:root{--bg:#fafafa;--text:#0a2540;--muted:#5b6b82;--line:#e5e7eb;}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+margin:0;
+background:var(--bg);
+color:var(--text);
+font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+}
+
+.safe{
+background:#0a0a0a;
+color:#fff;
+font-size:12px;
+padding:6px 10px;
+}
+
+.wrap{
+max-width:1100px;
+margin:0 auto;
+padding:18px 14px 60px;
+}
+
+.page-title{
+font-size:28px;
+font-weight:900;
+display:flex;
+align-items:center;
+gap:8px;
+margin:6px 0 14px;
+}
+
+.stars{color:#f6b80c}
+.reviews{color:#5b6b82;font-size:13px;font-weight:400}
+
+.grid{
+display:grid;
+grid-template-columns:minmax(0,1fr) 360px;
+gap:18px;
+}
+
+@media(max-width:960px){
+.grid{grid-template-columns:1fr;}
+}
+
+.card{
+background:#fff;
+border:1px solid var(--line);
+padding:24px;
+border-radius:12px;
+}
+
+.h2{
+font-size:18px;
+font-weight:800;
+margin:0 0 4px;
+}
+
+.sub{
+font-size:13px;
+color:#5b6b82;
+margin-bottom:20px;
+}
+
+.back-link{
+display:inline-flex;
+align-items:center;
+gap:6px;
+color:#4f46e5;
+text-decoration:none;
+font-size:14px;
+font-weight:600;
+margin-bottom:18px;
+cursor:pointer;
+}
+
+.form-group{
+margin-bottom:14px;
+}
+
+.label{
+display:block;
+font-size:13px;
+font-weight:600;
+margin-bottom:6px;
+color:#334155;
+}
+
+.input{
+width:100%;
+border:1px solid #cfd6e4;
+border-radius:10px;
+padding:12px;
+font-size:15px;
+background:#fff;
+transition:border-color .15s;
+}
+
+.input:focus{
+outline:none;
+border-color:#4f46e5;
+}
+
+.payment-box{
+border:1px solid #cfd6e4;
+border-radius:12px;
+padding:18px;
+background:#fcfdfe;
+margin-top:16px;
+}
+
+#card-element{
+background:#fff;
+padding:12px;
+border:1px solid #cfd6e4;
+border-radius:10px;
+min-height:44px;
+}
+
+.btn{
+width:100%;
+padding:14px;
+border:none;
+border-radius:12px;
+background:#16a34a;
+color:#fff;
+font-weight:900;
+font-size:16px;
+cursor:pointer;
+margin-top:18px;
+box-shadow:0 1px 2px rgba(0,0,0,0.05);
+}
+
+.btn:disabled{
+opacity:.6;
+cursor:not-allowed;
+}
+
+.widget{
+background:#fff;
+border:1px solid var(--line);
+padding:16px;
+border-radius:12px;
+}
+
+.widget + .widget{
+margin-top:12px;
+}
+
+.order-row{
+display:flex;
+justify-content:space-between;
+padding:8px 0;
+font-size:14px;
+}
+
+.order-row + .order-row{
+border-top:1px dashed #e2e8f0;
+}
+
+.order-row.total{
+font-weight:900;
+font-size:18px;
+border-top:1px solid #000;
+padding-top:12px;
+margin-top:4px;
+}
+
+.err{
+display:none;
+background:#fff1f1;
+border:1px solid #f5bcbc;
+padding:12px;
+border-radius:10px;
+color:#9a1a1a;
+font-size:14px;
+margin-bottom:16px;
+font-weight:500;
+}
+
+.loading-overlay{
+position:fixed;
+inset:0;
+background:rgba(246,249,252,.94);
+display:none;
+align-items:center;
+justify-content:center;
+z-index:9999;
+}
+
+.loading-overlay[aria-hidden="false"]{
+display:flex;
+}
+
+.loading-box{
+width:min(92vw,440px);
+background:#fff;
+border:1px solid #e6edf5;
+border-radius:16px;
+padding:30px 24px;
+text-align:center;
+box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);
+}
+
+.loading-title{
+font-size:20px;
+font-weight:800;
+margin-bottom:6px;
+}
+
+.loading-sub{
+font-size:14px;
+color:#5b6b82;
+margin-bottom:20px;
+}
+
+.progress-wrap{
+width:100%;
+height:8px;
+background:#ecf1f8;
+border-radius:999px;
+overflow:hidden;
+}
+
+.progress-bar{
+width:0%;
+height:100%;
+background:#4f46e5;
+border-radius:999px;
+animation:loadingBar 4s forwards;
+}
+
+@keyframes loadingBar{
+0%{width:0%}
+20%{width:30%}
+40%{width:60%}
+70%{width:85%}
+100%{width:99%}
+}
+</style>
+</head>
+
+<body>
+
+<div class="safe">Pago Seguro SSL — Conexión Encriptada de 256 bits</div>
+
+<div class="wrap">
+
+<div class="page-title">
+Verificación de Pago 🔒 
+<span class="stars" style="margin-left:10px; font-size:20px;">★★★★★</span>
+<span class="reviews">(2,777 reseñas)</span>
+</div>
+
+<div class="grid">
+
+<div class="card">
+<div id="backBtn" class="back-link">← Volver al paso anterior</div>
+
+<div id="error-block" class="err"></div>
+
+<div class="h2">2. Detalles de Pago</div>
+<div class="sub">Complete su compra de forma segura utilizando su tarjeta de crédito o débito.</div>
+
+<div class="payment-box">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+<span style="font-size:14px; font-weight:700; color:#334155;">Tarjeta de Crédito o Débito</span>
+<span style="font-size:12px; color:#16a34a; font-weight:700;">🔒 Conexión Segura</span>
+</div>
+
+<div id="card-element"></div>
+</div>
+
+<button id="payNow" class="btn" disabled>Pagar $39.95 MXN</button>
+</div>
+
+<aside>
+<div class="widget">
+<div style="font-weight:800; font-size:15px; margin-bottom:12px; color:#1e293b;">Resumen del Pedido</div>
+<div class="order-row">
+<span>Acceso Especial Speak to Heaven</span>
+<span style="font-weight:600;">$39.95 MXN</span>
+</div>
+<div class="order-row">
+<span>Envío Express Premium</span>
+<span style="color:#16a34a; font-weight:600;">Gratis</span>
+</div>
+<div class="order-row total">
+<span>Total:</span>
+<span>$39.95 MXN</span>
+</div>
+</div>
+
+<div class="widget" style="background:#f8fafc;">
+<div style="font-weight:700; font-size:13px; margin-bottom:6px; color:#475569;">Garantía de Satisfacción</div>
+<p style="margin:0; font-size:12px; color:#64748b; line-height:1.5;">Su transacción está totalmente protegida por protocolos encriptados SSL de nivel bancario. El acceso se activará de inmediato.</p>
+</div>
+</aside>
+
+</div>
+</div>
+
+<div id="overlay" class="loading-overlay" aria-hidden="true">
+<div class="loading-box">
+<div class="loading-title">Procesando Pago Seguro</div>
+<div id="overlay-msg" class="loading-sub">Confirmando los detalles de su tarjeta con el banco...</div>
+<div class="progress-wrap">
+<div class="progress-bar"></div>
+</div>
+</div>
+</div>
+
+<script>
+let trustPayApi = null;
+let cardComponent = null;
+let paymentSecrets = null;
+
+const payNow = document.getElementById("payNow");
+const backBtn = document.getElementById("backBtn");
+const errorBlock = document.getElementById("error-block");
+const overlay = document.getElementById("overlay");
+
+function showError(msg) {
+    errorBlock.textContent = msg;
+    errorBlock.style.display = "block";
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function clearError() {
+    errorBlock.textContent = "";
+    errorBlock.style.display = "none";
+}
+
+async function initialiseFinby() {
+    const token = window.PROMO_CHECKOUT_TOKEN || window.location.pathname.split('/').pop();
+    
+    // Call server to fetch Finby payment setup keys
+    const res = await fetch("/api/create-promo-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkoutToken: token })
+    });
+    
+    if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "No se pudo preparar el entorno de pago.");
+    }
+    
+    paymentSecrets = await res.json();
+    
+    if (!paymentSecrets.publicKey) {
+        throw new Error("Clave pública de pasarela ausente.");
+    }
+    
+    // Connect into the Finby JavaScript engine instance layers
+    trustPayApi = window.Finby(paymentSecrets.publicKey);
+    const elements = trustPayApi.elements();
+    
+    cardComponent = elements.create("card", {
+        style: {
+            base: {
+                fontSize: "15px",
+                color: "#0a2540",
+                fontFamily: "system-ui, sans-serif"
+            }
+        }
+    });
+    
+    cardComponent.mount("#card-element");
+    
+    cardComponent.on("change", (event) => {
+        payNow.disabled = !event.complete;
+    });
+}
+
+window.addEventListener("DOMContentLoaded", async () => {
+    try {
+        await initialiseFinby();
+        payNow.disabled = false;
+    } catch (e) {
+        console.error(e);
+        showError(e.message || "Error al cargar el formulario de pago.");
+        payNow.disabled = true;
+    }
+});
+
+backBtn.onclick = () => {
+    window.history.back();
+};
+
+payNow.onclick = async () => {
+    clearError();
+    payNow.disabled = true;
+    overlay.setAttribute("aria-hidden", "false");
+
+    setTimeout(() => {
+        overlay.setAttribute("aria-hidden", "true");
+    }, 4000);
+
+    try {
+        if (!trustPayApi || !cardComponent || !paymentSecrets) {
+            throw new Error("El formulario de pago seguro no está inicializado.");
+        }
+
+        // Execute payment handshake directly through loaded frame components
+        const result = await trustPayApi.finishCardPayment(paymentSecrets.payment, {
+            card: cardComponent
+        });
+
+        console.log("MEXICO PAYMENT RESULT:", result);
+
+        // Retrieve and map affiliate context out of global params tracking strings
+        const qs = new URLSearchParams(location.search);
+        const affiliateRef = qs.get("ref") || "";
+        const sub1 = qs.get("sub1") || "";
+        const sub2 = qs.get("sub2") || "";
+
+        // Trigger background conversion updates to BeMob before redirecting
+        executeBeMobPostback();
+
+        // Send to confirmation destination sequence URL
+        window.location.href =
+            "https://cudsr.bemobtrcks.com/go/6b6e67d8-fe22-4816-8318-ef7cf7685f83?" +
+            "ref=" + encodeURIComponent(affiliateRef) +
+            "&sub1=" + encodeURIComponent(sub1) +
+            "&sub2=" + encodeURIComponent(sub2);
+
+        return;
+
+    } catch (error) {
+        overlay.setAttribute("aria-hidden", "true");
+        payNow.disabled = false;
+        showError(error.message || "Su pago no pudo ser procesado. Verifique los datos de su tarjeta.");
+    }
+};
+
+function executeBeMobPostback() {
+    const originalQs = sessionStorage.getItem("orig_qs") || "";
+    const localParams = new URLSearchParams(originalQs);
+    const clickId = localParams.get("cid") || localParams.get("clickid") || "";
+
+    // Record conversion value to tracking platform dashboard
+    const bemobUrl = `https://cudsr.bemobtrcks.com/go/6b6e67d8-fe22-4816-8318-ef7cf7685f83?cid=${encodeURIComponent(clickId)}&payout=2.00&currency=USD`;
+
+    fetch(bemobUrl, { mode: 'no-cors' })
+        .then(() => console.log("BeMob tracking successfully notified."))
+        .catch((e) => console.error("Tracking registration update skipped:", e));
+}
+</script>
+
+</body>
+</html>

