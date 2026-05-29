@@ -188,7 +188,7 @@ const params = new URLSearchParams(window.location.search);
 const affiliateRef = params.get('ref');
 
 if (!affiliateRef) {
-    window.location.replace('https://www.speaktoheaven.com');
+    window.location.replace('https://www.facebook.com');
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -302,7 +302,7 @@ nextBtn.onclick = async () => {
     }
 
     window.location.href =
-  "https://www.speaktoheaven.com" +
+  "https://www.legendspeak.net" +
   data.url +
   "?ref=" + encodeURIComponent(affiliateRef) +
   "&sub1=" + encodeURIComponent(qs.get("sub1") || "") +
