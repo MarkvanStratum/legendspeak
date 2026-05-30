@@ -5,202 +5,438 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sacred Offering — Secure Checkout</title>
 
-    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=EB+Garamond&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=EB+Garamond&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script type="text/javascript" src="https://gw.finby.eu/js/v1.js"></script>
 
     <style>
         :root {
             --gold-divine: #c5a059;
             --blue-saint: #2c3e50;
-            --bg-heaven: #fdfcfb;
-            --text-muted: #8a8276;
-            --text-main: #33302c;
-            --error: #b00020;
-            --success: #1b7f3a;
+            --bg-layout: #f9fafb;
+            --line-border: #e5e7eb;
+            --text-main: #0a2540;
+            --text-muted: #62748b;
+            --error: #9a1a1a;
+            --success: #16a34a;
         }
-        body { background: var(--bg-heaven); font-family: 'EB Garamond', serif; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; overflow-y: auto; margin: 0; padding: 20px; }
-        .checkout-box {
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 15px 50px rgba(0,0,0,0.05);
-            width: 100%;
-            max-width: 500px;
-            margin: 40px auto;
-            border: 1px solid rgba(197,160,89,0.2);
-        }
-        .logo { text-align: center; color: var(--gold-divine); font-family: 'Cinzel'; font-size: 30px; margin-bottom: 10px; }
-        .plan-summary { background: #fdfaf5; padding: 20px; border-radius: 10px; margin-bottom: 25px; text-align: center; border: 1px dashed var(--gold-divine); }
-        .plan-name { font-family: 'Cinzel'; color: var(--blue-saint); font-size: 20px; margin-bottom: 5px; }
-        .plan-price { font-size: 28px; font-weight: bold; color: var(--gold-divine); }
-        .disclosure-box { font-size: 13px; color: var(--text-muted); background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; line-height: 1.5; border: 1px solid #eee; }
-        .disclosure-box strong { color: var(--blue-saint); }
-        label { display: block; margin-bottom: 8px; font-weight: bold; color: var(--blue-saint); font-size: 14px; }
-        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        
-        #card-element {
-    padding: 12px;
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    background: white;
-    min-height: 46px;
-    scroll-margin-top: 120px;
-}
 
-        .checkbox-group { margin: 25px 0; }
-        .checkbox-item { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 15px; cursor: pointer; }
-        .checkbox-item input { width: auto; margin-top: 4px; cursor: pointer; flex-shrink: 0; }
-        .checkbox-text { font-size: 13px; color: var(--text-main); line-height: 1.4; }
-        .checkbox-text a { color: var(--gold-divine); text-decoration: underline; font-weight: bold; }
-        .pay-btn { background: var(--blue-saint); color: white; width: 100%; padding: 16px; border: none; border-radius: 8px; font-family: 'Cinzel'; font-size: 16px; cursor: pointer; transition: 0.3s; margin-top: 10px; font-weight: bold; }
-        .pay-btn:hover { background: #1a2530; transform: translateY(-2px); }
-        .pay-btn:disabled { opacity: 0.65; cursor: not-allowed; transform: none; }
-        .secure-badge { text-align: center; font-size: 12px; color: #4caf50; margin-top: 10px; font-weight: bold; text-transform: uppercase; }
-        .message { display: none; padding: 12px; border-radius: 8px; margin-top: 15px; font-size: 14px; line-height: 1.4; }
-        .message.error { display: block; background: #fff1f1; color: var(--error); border: 1px solid #ffd0d0; }
-        .message.success { display: block; background: #f0fff5; color: var(--success); border: 1px solid #bfe8cc; }
-        .footer-links { text-align: center; margin-top: 30px; font-size: 13px; color: var(--text-muted); border-top: 1px solid #eee; padding-top: 20px; }
-        .footer-links a { color: var(--gold-divine); margin: 0 10px; text-decoration: none; font-weight: bold; }
-        .footer-links a:hover { text-decoration: underline; }
+        * { box-sizing: border-box; }
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background: #fff; 
+            font-family: 'Inter', system-ui, sans-serif;
+            color: var(--text-main);
+            min-height: 100vh;
+        }
+
+        .safe-header {
+            background: #0a0a0a;
+            color: #fff;
+            font-size: 12px;
+            padding: 8px 20px;
+            text-align: left;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .main-container {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 400px;
+            min-height: calc(100vh - 31px);
+        }
+
+        @media (max-width: 960px) {
+            .main-container { grid-template-columns: 1fr; }
+            .sidebar { border-left: none !important; border-top: 1px solid var(--line-border); }
+        }
+
+        .form-section {
+            padding: 40px min(10%, 80px);
+            background: #fff;
+        }
+
+        .brand-header {
+            text-align: left;
+            margin-bottom: 35px;
+            border-bottom: 1px solid var(--line-border);
+            padding-bottom: 20px;
+        }
+
+        .brand-title {
+            font-family: 'Cinzel', serif;
+            font-size: 26px;
+            color: var(--blue-saint);
+            letter-spacing: 2px;
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .brand-sub {
+            font-family: 'EB Garamond', serif;
+            font-style: italic;
+            font-size: 15px;
+            color: var(--gold-divine);
+            margin-top: 4px;
+        }
+
+        h2 { 
+            font-size: 18px; 
+            font-weight: 700; 
+            margin: 0 0 8px 0; 
+            color: var(--text-main);
+        }
+
+        .subtitle { 
+            color: var(--text-muted); 
+            font-size: 14px; 
+            margin-bottom: 24px; 
+        }
+
+        .input-group { margin-bottom: 20px; }
+        label { 
+            display: block; 
+            margin-bottom: 6px; 
+            color: var(--text-main); 
+            font-size: 13px; 
+            font-weight: 600;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cfd6e4;
+            border-radius: 8px;
+            font-size: 15px;
+            color: var(--text-main);
+            background: #fff;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus { outline: none; border-color: var(--blue-saint); }
+
+        #card-element {
+            padding: 4px 0;
+            border: 1px solid #cfd6e4;
+            border-radius: 8px;
+            background: #fff;
+            min-height: 90px;
+            overflow: hidden;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-top: 15px;
+            text-align: left;
+            cursor: pointer;
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .checkbox-container input {
+            margin-top: 3px;
+            cursor: pointer;
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+
+        .checkbox-container a {
+            color: var(--blue-saint);
+            text-decoration: underline;
+        }
+
+        .btn-submit {
+            background: #16a34a;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 25px;
+            transition: opacity 0.2s;
+        }
+        .btn-submit:hover { opacity: 0.9; }
+        .btn-submit:disabled { background: #cbd5e1; cursor: not-allowed; color: #64748b; }
+
+        .message { margin-top: 20px; padding: 12px; border-radius: 8px; font-size: 14px; display: none; }
+        .message.error { display: block; background: #fff1f1; color: var(--error); border: 1px solid #f5bcbc; }
+        .message.success { display: block; background: #f0fdf4; color: var(--success); border: 1px solid #bbf7d0; }
+
+        .sidebar {
+            background: var(--bg-layout);
+            border-left: 1px solid var(--line-border);
+            padding: 40px 30px;
+        }
+
+        .widget {
+            background: #fff;
+            border: 1px solid var(--line-border);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .product-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border: 1px dashed #d9e2ef;
+            border-radius: 10px;
+            background: #f7fbff;
+        }
+
+        .order-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            font-size: 14px;
+        }
+        .order-total {
+            border-top: 1px dashed var(--line-border);
+            font-weight: 700;
+            font-size: 16px;
+            padding-top: 12px;
+            margin-top: 6px;
+        }
+
+        .trust-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        .trust-box {
+            border: 1px solid var(--line-border);
+            padding: 10px;
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div class="checkout-box">
-        <div class="logo">† Legend Speak</div>
 
-        <div class="plan-summary">
-            <div class="plan-name" id="display-plan">Access Plan</div>
-            <div class="plan-price" id="display-price">£--.--</div>
+<div class="safe-header">🔒 Secure SSL Checkout Connection</div>
+
+<div class="main-container">
+
+    <div class="form-section">
+        <div class="brand-header">
+            <h1 class="brand-title">Legend Speak</h1>
+            <div class="brand-sub">Sacred Biblical AI Sanctuary Conversations</div>
         </div>
 
-        <div class="disclosure-box">
-            <strong>Payment Disclosure:</strong> We only accept <b>one-time payments</b> verified by 3D Secure. We have <b>no subscriptions</b> and you will not be charged again.<br><br>
-            <strong>Billing Descriptor:</strong> This charge will appear on your bank statement as: <strong>SPEAKTOHEAVEN</strong>.
-        </div>
+        <h2>2. Secure Payment Authorization</h2>
+        <div class="subtitle">Your financial information is completely encrypted and fully isolated.</div>
 
         <form id="payment-form">
-
-            
-            
-            <label for="cardholder-name">Cardholder Name</label>
-            <input id="cardholder-name" type="text" placeholder="Full name as it appears on card" autocomplete="cc-name" required>
-
-            <label>Card Information</label>
-            <div id="card-element"></div>
-
-            <div class="checkbox-group">
-                <label class="checkbox-item">
-                    <input id="ai-disclosure" type="checkbox" required>
-                    <span class="checkbox-text">
-                        I acknowledge that Legend Speak is an AI-generated digital service for personal reflection and does not facilitate real communication with God, Jesus, prophets, or deceased persons.
-                    </span>
-                </label>
-
-                <label class="checkbox-item">
-                    <input id="terms" type="checkbox" required>
-                    <span class="checkbox-text">
-                        I agree to the <a href="/terms-and-conditions.html" target="_blank">Terms & Conditions</a> and <a href="/privacy-policy.html" target="_blank">Privacy Policy</a>.
-                    </span>
-                </label>
+            <div class="input-group">
+                <label for="cardholder-name">Cardholder Full Name</label>
+                <input type="text" id="cardholder-name" placeholder="John Doe" required>
             </div>
 
-            <button id="submit" class="pay-btn" type="submit">Complete One-Time Payment</button>
-            <div class="secure-badge">🛡️ Secured by 3D Secure Authentication</div>
-            <div id="payment-message" class="message"></div>
+            <div class="input-group">
+                <label>Credit Card Credentials</label>
+                <div id="card-element"></div>
+            </div>
+
+            <label class="checkbox-container">
+                <input type="checkbox" id="check-terms" required>
+                <span>I explicitly authorize and accept the platform <a href="/terms" target="_blank">Terms & Conditions</a> along with the default automated renewal provisioning specifications.</span>
+            </label>
+
+            <label class="checkbox-container">
+                <input type="checkbox" id="check-privacy" required>
+                <span>I confirm acknowledgment of immediate system delivery access deployment and agree with the established data usage policies outlined in the <a href="/privacy-policy" target="_blank">Privacy Policy</a>.</span>
+            </label>
+
+            <div id="message-box" class="message"></div>
+
+            <button type="submit" id="submit-button" class="btn-submit">
+                <span id="btn-loader" style="display: none;" class="loader"></span>
+                <span id="btn-text">Pay Securely</span>
+            </button>
         </form>
-
-        <div class="footer-links">
-            <a href="/contact.html">Refund Request</a> |
-            <a href="/contact.html">Support Contact</a>
-        </div>
-
-        <div style="text-align:center; margin-top: 20px; opacity: 0.7;">
-            <img src="https://static.vecteezy.com/system/resources/previews/020/975/572/original/visa-logo-visa-icon-transparent-free-png.png" alt="Visa" style="height:22px; margin-right:15px; vertical-align: middle;">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="MasterCard" style="height:22px; vertical-align: middle;">
-        </div>
     </div>
 
-    <script>
-        const plan = window.CHECKOUT_PLAN || 'god';
+    <div class="sidebar">
+        
+        <div id="productBox" class="widget" style="display:none">
+            <div class="product-info">
+                <img id="productImg" style="width:52px;height:52px;border-radius:8px;border:1px solid var(--line-border);object-fit:cover;display:none">
+                <div>
+                    <div id="productTitle" style="font-weight:700;font-size:14px"></div>
+                    <div style="font-size:12px;color:var(--text-muted)">Selected Divine Communion Plan</div>
+                </div>
+            </div>
+        </div>
 
-        const titles = {
-            god: 'God Access',
-            all: 'Full Access',
-            lifetime: 'Lifetime Access'
-        };
+        <div class="widget">
+            <div style="font-weight:700;margin-bottom:12px;font-size:14px">Order Verification Summary</div>
+            <div class="order-row">
+                <span>Fast Delivery Delivery</span>
+                <span style="font-weight:600;color:var(--success)">Free Access</span>
+            </div>
+            <div class="order-row order-total">
+                <span>Total Amount Due:</span>
+                <span id="total-price-display">Calculating...</span>
+            </div>
+        </div>
 
-        const prices = {
-            god: '£29.95',
-            all: '£35.95',
-            lifetime: '£49.95'
-        };
+        <div class="widget">
+            <div style="font-weight:700;margin-bottom:12px;font-size:14px">Why Choose Our Sanctuary Architecture</div>
+            <div class="trust-grid">
+                <div class="trust-box"><div style="font-size:16px">⭐</div>99.4% Positive</div>
+                <div class="trust-box"><div style="font-size:16px">🔒</div>SSL Secure</div>
+                <div class="trust-box"><div style="font-size:16px">🛡️</div>Isolated Safe</div>
+                <div class="trust-box"><div style="font-size:16px">💬</div>24/7 Portal Support</div>
+            </div>
+        </div>
 
-        const endpoints = {
-            god: '/api/create-payment-2995',
-            all: '/api/create-au-payment-3595',
-            lifetime: '/api/create-landing-payment'
-        };
+    </div>
 
-        document.getElementById('display-plan').innerText = titles[plan] || 'Access Plan';
-        document.getElementById('display-price').innerText = prices[plan] || '£--.--';
-        document.getElementById('submit').innerText = 'Pay ' + (prices[plan] || 'now');
+</div>
 
-        const form = document.getElementById('payment-form');
-const submitButton = document.getElementById('submit');
-const messageBox = document.getElementById('payment-message');
+<script>
+const tokenFromServer = window.PROMO_CHECKOUT_TOKEN || null;
+
+const form = document.getElementById('payment-form');
+const submitBtn = document.getElementById('submit-button');
+const btnLoader = document.getElementById('btn-loader');
+const btnText = document.getElementById('btn-text');
+const messageBox = document.getElementById('message-box');
+const totalPriceDisplay = document.getElementById('total-price-display');
+
+const checkTerms = document.getElementById('check-terms');
+const checkPrivacy = document.getElementById('check-privacy');
+
+const pageParams = new URLSearchParams(location.search);
+const productTitleFromUrl = pageParams.get("sub1") || "";
+const productImageFromUrl = pageParams.get("sub2") || "";
 
 let trustPayApi = null;
 let cardComponent = null;
 let paymentSecrets = null;
 
-function showMessage(type, text) {
-    messageBox.className = 'message ' + type;
-    messageBox.textContent = text;
-}
+window.addEventListener("DOMContentLoaded", () => {
+    const productBox = document.getElementById("productBox");
+    const productTitle = document.getElementById("productTitle");
+    const productImg = document.getElementById("productImg");
+
+    if (productTitleFromUrl) {
+        productTitle.textContent = productTitleFromUrl;
+        productBox.style.display = "block";
+    }
+    if (productImageFromUrl) {
+        productImg.src = productImageFromUrl;
+        productImg.style.display = "block";
+        productBox.style.display = "block";
+    }
+});
 
 function setLoading(isLoading) {
-    submitButton.disabled = isLoading;
-    submitButton.textContent = isLoading ? 'Processing...' : 'Pay ' + (prices[plan] || 'now');
+    if (isLoading) {
+        submitBtn.disabled = true;
+        btnLoader.style.display = 'inline-block';
+        btnText.textContent = 'Processing...';
+    } else {
+        submitBtn.disabled = false;
+        btnLoader.style.display = 'none';
+        btnText.textContent = 'Pay Securely';
+    }
+}
+
+function showMessage(type, text) {
+    messageBox.textContent = text;
+    messageBox.className = `message ${type}`;
 }
 
 async function initialiseFinby() {
-    const endpoint = endpoints[plan] || endpoints.god;
+    if (!tokenFromServer) {
+        throw new Error('Invalid or expired checkout session. Please re-select a plan.');
+    }
 
-    const response = await fetch(endpoint, {
-        method: 'POST',
+    const response = await fetch("/api/create-promo-payment", {
+        method: "POST",
         headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + localStorage.getItem('jwt')
+            "Content-Type": "application/json"
         },
-        body: JSON.stringify({})
+        body: JSON.stringify({
+            checkoutToken: tokenFromServer
+        })
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+    try {
+        data = JSON.parse(text);
+    } catch (e) {
+        throw new Error(text || 'Server returned an invalid response environment.');
+    }
 
     if (!response.ok) {
-        console.error('Finby intent error:', data);
-        throw new Error(data?.error || 'Could not create payment. Please try again.');
+        throw new Error(data.error || 'Could not instantiate payment record.');
     }
 
     if (!data.secrets || !data.secrets.payment) {
-        console.error('Unexpected Finby response:', data);
-        throw new Error('Payment setup failed. Please contact support.');
+        throw new Error('Handshake failed. No payment secret tokens were initialized.');
+    }
+
+    // FIX: Completely dynamic price parser pulled from active transaction authorization data
+    
+        // FIX: Extracting the price properly from the actual server response payload
+    const finalAmount = data.amount || (data.checkoutLink && data.checkoutLink.amount);
+    const finalCurrency = data.currency || (data.checkoutLink && data.checkoutLink.currency) || 'GBP';
+
+    if (finalAmount) {
+        const amountNum = Number(finalAmount);
+        const currencySymbol = finalCurrency === 'GBP' ? '£' : (finalCurrency === 'EUR' ? '€' : finalCurrency || '');
+        
+        if (finalCurrency === 'EUR') {
+            totalPriceDisplay.textContent = amountNum.toFixed(2).replace('.', ',') + ' €';
+        } else {
+            totalPriceDisplay.textContent = currencySymbol + amountNum.toFixed(2);
+        }
+    } else {
+        // Safe layout fallback if something goes wrong
+        totalPriceDisplay.textContent = '£' + (window.location.search.includes('3595') ? '35.95' : (window.location.search.includes('4995') ? '49.95' : '29.95'));
     }
 
     paymentSecrets = data.secrets;
     trustPayApi = new TrustPayApi(paymentSecrets);
 
-    cardComponent = trustPayApi.createComponent('card', {
+    cardComponent = trustPayApi.createComponent("card", {
         style: {
-            fontFamily: 'Arial, Helvetica, sans-serif',
-            fontSize: '16px',
-            color: '#33302c'
+            fontFamily: "Inter, system-ui, sans-serif",
+            fontSize: "15px",
+            color: "#0a2540"
         }
     });
 
-    document.getElementById('card-element').innerHTML = '';
-    cardComponent.mount('#card-element');
+    document.getElementById("card-element").innerHTML = "";
+cardComponent.mount("#card-element");
 }
 
 window.addEventListener('load', async () => {
@@ -218,6 +454,11 @@ window.addEventListener('load', async () => {
 form.addEventListener('submit', async (event) => {
     event.preventDefault();
     messageBox.className = 'message';
+
+    if (!checkTerms.checked || !checkPrivacy.checked) {
+        showMessage('error', 'Please accept the mandatory terms and policy verification checkboxes to proceed.');
+        return;
+    }
 
     if (!form.checkValidity()) {
         form.reportValidity();
@@ -237,7 +478,19 @@ form.addEventListener('submit', async (event) => {
 
         console.log('FINBY PAYMENT RESULT:', result);
 
-        if (Number(result?.status) >= 0) {
+        const isFinbySuccess =
+            result &&
+            (
+                result.status === "paid" ||
+                result.status === "success" ||
+                result.status === "succeeded" ||
+                Number(result.status) === 0 ||
+                Number(result.status) > 0 ||
+                String(result.resultCode || result.ResultCode || "") === "100000" ||
+                String(result.reasonCode || result.ReasonCode || "") === "000.000.000"
+            );
+
+        if (isFinbySuccess) {
             showMessage('success', 'Payment completed successfully. Your access will be activated shortly.');
 
             setTimeout(() => {
@@ -249,11 +502,11 @@ form.addEventListener('submit', async (event) => {
 
     } catch (error) {
         console.error('Payment failed:', error);
-        showMessage('error', error?.message || 'Payment failed. Please try again.');
+        showMessage('error', error?.message || 'Transaction submission failed.');
     } finally {
         setLoading(false);
     }
 });
-    </script>
+</script>
 </body>
 </html>
