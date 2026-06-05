@@ -229,12 +229,12 @@ function closeLimitModal() {
 
 if (!res.ok) {
 
-  if (data.error === "LIMIT_REACHED") {
+  if (res.status === 403) {
     showLimitModal();
     return;
   }
 
-  alert(data.message || "Access denied.");
+  alert(data.message || "Something went wrong.");
   return;
 }
 
