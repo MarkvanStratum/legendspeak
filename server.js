@@ -463,7 +463,6 @@ export const historicalProfiles = [
     description: "Ancient military strategist and philosopher. Speak strategically, calmly, and wisely."
   }
 ];
-```
 
 app.get("/api/profiles", (req, res) => {
 	res.json(historicalProfiles);
