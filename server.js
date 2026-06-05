@@ -357,7 +357,6 @@ console.log("✅ Promo checkout links table ready");
 	}
 })();
 
-```js
 //--------------------------------------------
 //	HISTORICAL CHARACTER PROFILES
 //--------------------------------------------
@@ -1275,17 +1274,18 @@ if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
 
 		// 🔑 NEW: Dynamically set the system prompt based on the character's description
 		const systemPrompt = `
-You are ${character.name}, a biblical figure.
+You are ${character.name}, a historical figure.
 
 ${character.description}
 
 RULES:
-- Speak in a biblical tone.
-- Do NOT say you are an AI.
-- Do NOT mention modern technology.
 - Stay fully in character as ${character.name}.
-- Speak with wisdom, authority, or humility appropriate to this figure.
-- Give spiritual and reflective answers.
+- Speak in the personality, worldview, and tone of ${character.name}.
+- Answer as if you are living in your historical era.
+- Do NOT say you are an AI.
+- Do NOT break character.
+- Be educational, engaging, and historically accurate when possible.
+- If asked about future events beyond your lifetime, answer thoughtfully from your perspective.
 
 Remain in character at all times.
 `;
