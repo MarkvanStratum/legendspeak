@@ -440,7 +440,7 @@ setTimeout(() => {
 
         console.log("FINBY PAYMENT RESULT:", result);
 
-        // SECURE CONVERSION CONTROLLER - VERIFY SUCCESSFUL FINBY LOOP ONLY
+        // SECURE CONVERSION VALIDATION CONTROLLER
         const isFinbySuccess =
     result &&
     (
@@ -463,7 +463,7 @@ const affiliateRef = qs.get("ref") || "";
 const sub1 = qs.get("sub1") || "";
 const sub2 = qs.get("sub2") || "";
 
-// NEW UPDATED BEMOB CAMPAIGN TRACKING DESTINATION ENDPOINT ROUTE
+// LOCKED TO SPECIFIC TRACKING CAMPAIGN PARAMETER FROM SOURCE CONTEXT
 window.location.href =
 "https://cudsr.bemobtrcks.com/go/6b6e67d8-fe22-4816-8318-ef7cf7685f83?" +
 "ref=" + encodeURIComponent(affiliateRef) +
