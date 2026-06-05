@@ -225,8 +225,9 @@ function closeLimitModal() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${getToken()}` },
         body: JSON.stringify({ characterId: selectedId, message: text })
       });
-      if (res.status === 403) {
-  const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
+
+if (!res.ok) {
 
   if (data.error === "LIMIT_REACHED") {
     showLimitModal();
@@ -236,8 +237,10 @@ function closeLimitModal() {
   alert(data.message || "Access denied.");
   return;
 }
-      const data = await res.json();
-      if (data.reply) appendMessage("them", data.reply);
+
+if (data.reply) {
+  appendMessage("them", data.reply);
+}
 
 
     }
