@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Pagamento Sicuro</title>
+<title>Secure Checkout</title>
 
 <meta name="referrer" content="no-referrer">
 
@@ -215,29 +215,29 @@ animation:loadingBar 2.2s ease-in-out infinite;
 
 <body>
 
-<div class="safe">Connessione Sicura SSL della Cassa</div>
+<div class="safe">Secure SSL Checkout Connection</div>
 
 <div class="wrap">
 
 <div class="page-title">
-Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
-<span class="reviews">(2.777 recensioni clienti)</span>
+Secure Checkout 🔒 <span class="stars">★★★★★</span>
+<span class="reviews">(2,777 customer reviews)</span>
 </div>
 
 <div class="grid">
 
 <div class="card">
 
-<div class="h2">2. Pagamento</div>
-<p class="sub">I dati della tua carta sono completamente crittografati e processed in modo sicuro.</p>
+<div class="h2">2. Payment</div>
+<p class="sub">Your card details are completely encrypted and securely processed.</p>
 
 <div id="card-element"></div>
 
 <div id="err" class="err" aria-hidden="true"></div>
 
 <div style="display:flex;gap:10px;margin-top:12px">
-<button id="backBtn" class="btn" style="width:40%">Indietro</button>
-<button id="payNow" class="btn" style="width:60%">Paga in Sicurezza</button>
+<button id="backBtn" class="btn" style="width:40%">Back</button>
+<button id="payNow" class="btn" style="width:60%">Pay Securely</button>
 </div>
 
 </div>
@@ -250,31 +250,31 @@ Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
 </div>
 
 <div class="widget">
-<div style="text-align:center;font-weight:800">Recensioni dei Clienti</div>
+<div style="text-align:center;font-weight:800">Customer Reviews</div>
 <div style="text-align:center;font-weight:700;">Fenella Lara</div>
 <div style="text-align:center;color:#f6b80c;">★★★★★</div>
-<p style="text-align:center">Ho ricevuto il mio prodotto ieri. Esperienza eccellente!</p>
+<p style="text-align:center">Received my product yesterday. Excellent experience!</p>
 </div>
 
 <div class="widget">
 <div class="delivery">
 <div>
-<div style="font-weight:800">Consegna Rapida</div>
-<div class="sub">Da 3 a 5 giorni lavorativi</div>
+<div style="font-weight:800">Fast Delivery</div>
+<div class="sub">3 to 5 business days</div>
 </div>
-<div style="margin-left:auto;font-weight:800">Gratis</div>
+<div style="margin-left:auto;font-weight:800">Free</div>
 </div>
 
-<div style="margin-top:14px;font-weight:800">Riepilogo Ordine</div>
-<div class="order-row"><span>Totale</span><span>2,00 €</span></div>
+<div style="margin-top:14px;font-weight:800">Order Summary</div>
+<div class="order-row"><span>Total</span><span>2,00 €</span></div>
 </div>
 
 <div class="widget">
-<div style="font-weight:800;margin-bottom:10px">Perché Fidarsi di Noi</div>
+<div style="font-weight:800;margin-bottom:10px">Why Trust Us</div>
 <div class="trust">
-<div class="box"><div>⭐</div><div>99% recensioni positive</div></div>
-<div class="box"><div>🔒</div><div>Sicurezza SSL</div></div>
-<div class="box"><div>🛡️</div><div>Assicurazione di $250.000</div></div>
+<div class="box"><div>⭐</div><div>99% positive reviews</div></div>
+<div class="box"><div>🔒</div><div>SSL Security</div></div>
+<div class="box"><div>🛡️</div><div>$250,000 Insurance</div></div>
 </div>
 </div>
 
@@ -285,9 +285,9 @@ Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
 
 <div id="loading-overlay" class="loading-overlay" aria-hidden="true">
 <div class="loading-box">
-<div class="loading-title">Elaborazione del pagamento…</div>
+<div class="loading-title">Processing payment…</div>
 <div class="progress-wrap"><div class="progress-bar"></div></div>
-<p class="sub" style="margin-top:10px">Attendere qualche secondo…</p>
+<p class="sub" style="margin-top:10px">Please wait a few seconds…</p>
 </div>
 </div>
 
@@ -338,13 +338,13 @@ async function safeJson(response) {
     try {
         return JSON.parse(text);
     } catch (e) {
-        throw new Error(text || "Il server ha restituito una risposta non valida.");
+        throw new Error(text || "The server returned an invalid response environment.");
     }
 }
 
 async function initialiseFinby() {
     if (!tokenFromServer) {
-        throw new Error("Link di pagamento non valido o scaduto.");
+        throw new Error("Invalid or expired checkout link.");
     }
 
     const response = await fetch("https://www.legendspeak.net/api/create-promo-payment", {
@@ -360,11 +360,11 @@ async function initialiseFinby() {
     const data = await safeJson(response);
 
     if (!response.ok) {
-        throw new Error(data.error || "Impossibile inizializzare la transazione.");
+        throw new Error(data.error || "Could not instantiate payment record.");
     }
 
     if (!data.secrets || !data.secrets.payment) {
-        throw new Error("Errore di configurazione del pagamento. Chiave segreta mancante.");
+        throw new Error("Payment initialization error. No payment secret tokens were returned.");
     }
 
     paymentSecrets = data.secrets;
@@ -389,7 +389,7 @@ window.addEventListener("load", async () => {
         payNow.disabled = false;
     } catch (e) {
         console.error(e);
-        showError(e.message || "Impossibile caricare il modulo di pagamento.");
+        showError(e.message || "Could not load the payment form.");
         payNow.disabled = true;
     }
 });
@@ -409,14 +409,14 @@ payNow.onclick = async () => {
 
     try {
         if (!trustPayApi || !cardComponent || !paymentSecrets) {
-            throw new Error("Il modulo di pagamento non è stato caricato correttamente.");
+            throw new Error("Payment form not loaded correctly.");
         }
 
         const result = await trustPayApi.finishCardPayment(paymentSecrets.payment, {
             card: cardComponent
         });
 
-        console.log("FINBY ITALY PAYMENT RESULT:", result);
+        console.log("FINBY AUSTRALIA PAYMENT RESULT:", result);
 
         const isFinbySuccess = result && (
             result.status === "paid" ||
@@ -429,7 +429,7 @@ payNow.onclick = async () => {
         );
 
         if (!isFinbySuccess) {
-            throw new Error("Il pagamento non è stato completato.");
+            throw new Error("The payment was not completed.");
         }
 
         const qs = new URLSearchParams(location.search);
@@ -437,8 +437,8 @@ payNow.onclick = async () => {
         const sub1 = qs.get("sub1") || "";
         const sub2 = qs.get("sub2") || "";
 
-        // BEMOB ROUTING RE-DIRECTION
-        window.location.href = "https://cudsr.bemobtrcks.com/go/abc281a7-e82a-411b-8b56-1a0228d7d2e7?" +
+        // BEMOB REDIRECT TRACKING ROUTE
+        window.location.href = "https://cudsr.bemobtrcks.com/go/a0224109-84eb-47be-926c-e1a7232611a7?" +
             "ref=" + encodeURIComponent(affiliateRef) +
             "&sub1=" + encodeURIComponent(sub1) +
             "&sub2=" + encodeURIComponent(sub2);
@@ -448,7 +448,7 @@ payNow.onclick = async () => {
     } catch (e) {
         console.error(e);
         overlay.setAttribute("aria-hidden", "true");
-        showError(e.message || "Transazione fallita.");
+        showError(e.message || "Transaction submission failed.");
         payNow.disabled = false;
     }
 };
