@@ -171,7 +171,7 @@ Säker Betalning 🔒 <span class="stars">★★★★★</span>
 </div>
 
 <div style="margin-top:14px;font-weight:800">Beställningssammanfattning</div>
-<div class="order-row"><span>Totalt</span><span>22,00 kr</span></div>
+<div class="order-row"><span>Total</span><span>22,00 kr</span></div>
 </div>
 
 <div class="widget">
@@ -283,7 +283,7 @@ nextBtn.onclick = async () => {
       },
       body: JSON.stringify({
         plan: "3595", 
-        step2File: "fi-se2-999.html",
+        step2File: "fi-se2-999.html", // EXACTLY MATCHES YOUR SUCCESSFUL -999 CONFIGURATION FILE STRUCTURE
         currency: "GBP",
         amount: 35.95,
         sourcePage: window.location.href,
