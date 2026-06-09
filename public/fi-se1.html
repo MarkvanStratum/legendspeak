@@ -210,7 +210,7 @@ window.addEventListener('DOMContentLoaded', () => {
 const qs = new URLSearchParams(location.search);
 const d = v => {
   try { return decodeURIComponent(v || '') }
-  catch { return d(v || '') }
+  catch { return v || '' }
 };
 
 const hero = document.getElementById('hero');
@@ -283,7 +283,7 @@ nextBtn.onclick = async () => {
       },
       body: JSON.stringify({
         plan: "3595", 
-        step2File: "fi-se2-999.html", // MATCHES YOUR SYSTEM PATH REGISTRATION MAP EXACTLY
+        step2File: "fi-se2-999.html", // EXACT MATCH FOR SOUTH AFRICA FILE SCHEME
         currency: "GBP",
         amount: 35.95,
         sourcePage: window.location.href,
