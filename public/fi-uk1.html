@@ -4,12 +4,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Secure Checkout</title>
-<meta name="referrer" content="no-referrer">
+
 <meta http-equiv="Content-Security-Policy" content="
-  default-src 'self' https: 'unsafe-inline' 'unsafe-eval';
-  script-src 'self' https://www.googletagmanager.com https://gw.finby.eu https://api.goaffpro.com 'unsafe-inline' 'unsafe-eval';
-  connect-src 'self' https://gw.finby.eu;
-  frame-src *;
+default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval';
+script-src 'self' https: 'unsafe-inline' 'unsafe-eval';
+connect-src 'self' https:;
+frame-src *;
+style-src 'self' https: 'unsafe-inline';
+img-src * data: blob:;
 ">
 
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-FDQ6REQWS8"></script>
@@ -19,7 +21,19 @@ function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
 gtag('config', 'G-FDQ6REQWS8', { send_page_view: true });
 </script>
+<script src="https://api.goaffpro.com/loader.js?shop=nzyvwvfbde" type="text/javascript" async></script>
 
+<script>
+window.addEventListener("load", function () {
+    setTimeout(function () {
+        if (typeof goaffpro === "undefined") {
+            console.warn("GoAffPro failed to initialize");
+        } else {
+            console.log("GoAffPro loaded correctly");
+        }
+    }, 6000);
+});
+</script>
 <style>
 :root{--bg:#fafafa;--text:#0a2540;--muted:#5b6b82;--line:#e5e7eb;}
 *{box-sizing:border-box}
@@ -188,7 +202,7 @@ const params = new URLSearchParams(window.location.search);
 const affiliateRef = params.get('ref');
 
 if (!affiliateRef) {
-    window.location.replace('https://www.speaktoheaven.com');
+    window.location.replace('https://www.legendspeak.net');
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -265,13 +279,16 @@ nextBtn.onclick = async () => {
     nextBtn.textContent = "Creating secure checkout…";
     overlay.setAttribute("aria-hidden", "false");
 
-    const response = await fetch("https://www.speaktoheaven.com/api/create-promo-checkout-link", {
+    const response = await fetch("https://www.legendspeak.net/api/create-promo-checkout-link", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
         plan: "lifetime",
+        step2File: "sth-fi-uk2.html",
+        currency: "GBP",
+        amount: 49.95,
         sourcePage: window.location.href,
 
         firstName: firstName.value.trim(),
@@ -298,7 +315,12 @@ nextBtn.onclick = async () => {
       throw new Error(data.error || "Could not create secure checkout link.");
     }
 
-    window.location.href = "https://www.speaktoheaven.com" + data.url;
+    window.location.href =
+"https://cudsr.bemobtrcks.com/go/abc281a7-e82a-411b-8b56-1a0228d7d2e7?" +
+"ref=" + encodeURIComponent(affiliateRef) +
+"&sub_id=" + encodeURIComponent(subId) +
+"&sub1=" + encodeURIComponent(sub1) +
+"&sub2=" + encodeURIComponent(sub2);
 
   } catch (error) {
     overlay.setAttribute("aria-hidden", "true");
@@ -310,8 +332,6 @@ nextBtn.onclick = async () => {
 
 });
 </script>
-
-<script src="https://api.goaffpro.com/loader.js?shop=nzyvwvfbde"></script>
 
 </body>
 </html>
