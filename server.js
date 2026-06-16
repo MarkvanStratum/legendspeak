@@ -1008,7 +1008,7 @@ app.post("/api/create-promo-checkout-link", async (req, res) => {
 
 app.post("/api/create-promo-payment", async (req, res) => {
   try {
-    const { checkoutToken } = req.body || {};
+    const { checkoutToken, cardholderName } = req.body || {};
 
     if (!checkoutToken) {
       return res.status(400).json({
@@ -1064,6 +1064,7 @@ if (!amount) {
   `promo-${selectedPlan}-${Date.now()}`
 );
     const fullName =
+  cardholderName ||
   checkout.full_name ||
   `${checkout.first_name || ""} ${checkout.last_name || ""}`.trim() ||
   email;
