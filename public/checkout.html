@@ -384,8 +384,9 @@ async function initialiseFinby() {
             "Content-Type": "application/json"
         },
         body: JSON.stringify({
-            checkoutToken: tokenFromServer
-        })
+    checkoutToken: tokenFromServer,
+    cardholderName: document.getElementById("cardholder-name").value.trim()
+})
     });
 
     const text = await response.text();

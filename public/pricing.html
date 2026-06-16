@@ -165,8 +165,8 @@
         // Blank placeholder details to comply with dynamic initialization parameters
         firstName: "",
         lastName: "",
-        name: "Valued Customer",
-        email: "customer@speaktoheaven.com",
+        name: prompt("Please enter your full name for the payment:") || "",
+email: localStorage.getItem("userEmail") || "customer@speaktoheaven.com",
         phonePrefix: "+44",
         phone: "0000000000",
         address: "Main Sanctuary Street",
