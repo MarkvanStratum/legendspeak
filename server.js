@@ -177,11 +177,11 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     const selectedPlan = fixedPlan || plan;
 
     const amounts = {
-      "2995": 29.95,
-      "3595": 35.95,
-      "4995": 49.95,
-      "lifetime": 49.95
-    };
+  "2995": 22.95,
+  "3595": 26.95,
+  "4995": 37.95,
+  "lifetime": 37.95
+};
 
     const amount = amounts[selectedPlan];
 
@@ -1077,11 +1077,11 @@ app.post("/api/create-promo-payment", async (req, res) => {
     const selectedPlan = checkout.plan || "4995";
 
     const amounts = {
-      "2995": 29.95,
-      "3595": 35.95,
-      "4995": 49.95,
-      "lifetime": 49.95
-    };
+  "2995": 22.95,
+  "3595": 26.95,
+  "4995": 37.95,
+  "lifetime": 37.95
+};
 
     const amount = amounts[selectedPlan];
 
