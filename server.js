@@ -16,7 +16,7 @@ import crypto from "crypto";
 import fs from "fs";
 import multer from "multer";
 import fetch from "node-fetch";
-import FormData from "form-data";
+
 
 
 //--------------------------------------------
@@ -42,7 +42,7 @@ async function sendEmail(to, subject, html, attachments = []) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "Speak to Heaven <noreply@speaktoheaven.com>",
+      from: "Legend Speak <noreply@speaktoheaven.com>",
       to,
       subject,
       html,
@@ -60,7 +60,7 @@ function makeReceiptPdfBase64({ email, plan, amount }) {
   const amountText = "£" + Number(amount).toFixed(2);
 
   const lines = [
-    { text: "SPEAK TO HEAVEN", size: 22, x: 72, y: 720 },
+    { text: "Legend Speak", size: 22, x: 72, y: 720 },
     { text: "Official Payment Receipt", size: 16, x: 72, y: 690 },
 
     { text: "Invoice Number: " + invoiceNumber, size: 11, x: 72, y: 640 },
@@ -80,7 +80,7 @@ function makeReceiptPdfBase64({ email, plan, amount }) {
     { text: "Plan", size: 12, x: 300, y: 390 },
     { text: "Amount", size: 12, x: 450, y: 390 },
 
-    { text: "Speak to Heaven Access", size: 11, x: 72, y: 360 },
+    { text: "Legend Speak Access", size: 11, x: 72, y: 360 },
     { text: plan, size: 11, x: 300, y: 360 },
     { text: amountText, size: 11, x: 450, y: 360 },
 
@@ -157,86 +157,111 @@ function getCookie(req, name) {
 // JSON parser FIRST
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+function getXolvisAuthHeader() {
+  const raw = `${process.env.XOLVIS_API_USER}:${process.env.XOLVIS_API_PASSWORD}`;
+  return "Basic " + Buffer.from(raw).toString("base64");
+}
 
-async function createFinbyIntent(req, res, fixedPlan = null) {
+async function createXolvisPayment(req, res, fixedPlan = null) {
   try {
-    const { plan } = req.body;
-
-  // Read the email from the form if logged out, or from the session if logged in
-  const email = req.user ? req.user.email : req.body.email;
-
-  const selectedPlan = fixedPlan || plan;
+    const { plan } = req.body || {};
+    const email = req.user ? req.user.email : req.body.email;
+    const selectedPlan = fixedPlan || plan;
 
     const amounts = {
-  "2995": 29.95,
-  "3595": 35.95,
-  "4995": 49.95
-};
+      "2995": 29.95,
+      "3595": 35.95,
+      "4995": 49.95,
+      "lifetime": 49.95
+    };
 
     const amount = amounts[selectedPlan];
 
     if (!email) return res.status(400).json({ error: "Email is required" });
     if (!amount) return res.status(400).json({ error: "Invalid plan" });
 
-   const formData = new FormData();
+    const reference = `speaktoheaven-${selectedPlan}-${Date.now()}`;
 
-formData.append("paymentAction", "0");
-formData.append("paymentType", "plain");
-formData.append("amount", amount.toFixed(2));
-formData.append("currency", "GBP");
-const reference = `speaktoheaven-${selectedPlan}-${Date.now()}`;
+    await pool.query(
+      `
+      INSERT INTO xolvis_payments (reference, email, plan, amount)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (reference) DO NOTHING
+      `,
+      [reference, email, selectedPlan, amount]
+    );
 
-await pool.query(
-  `
-  INSERT INTO finby_payments (reference, email, plan, amount)
-  VALUES ($1, $2, $3, $4)
-  ON CONFLICT (reference) DO NOTHING
-  `,
-  [reference, email, selectedPlan, amount]
-);
+    const response = await fetch(
+      `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": getXolvisAuthHeader(),
+          "Content-Type": "application/json; charset=utf-8",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          merchantTransactionId: reference,
+          amount: amount.toFixed(2),
+          currency: "GBP",
+          description: "Legend Speak Access",
+          successUrl: process.env.XOLVIS_SUCCESS_URL,
+          cancelUrl: process.env.XOLVIS_CANCEL_URL,
+          errorUrl: process.env.XOLVIS_ERROR_URL,
+          callbackUrl: process.env.XOLVIS_CALLBACK_URL,
+          customer: {
+            email: email,
+            ipAddress: req.ip || "127.0.0.1"
+          },
+          language: "en"
+        })
+      }
+    );
 
-formData.append("reference", reference);
-formData.append("notificationUrl", process.env.FINBY_WEBHOOK_URL);
-formData.append("customer.email", email);
-formData.append("customer.ipAddress", req.ip || "127.0.0.1");
-formData.append("cardholder", email);
-
-const response = await fetch("https://gw.finby.eu/api/v1/intent", {
-  method: "POST",
-  headers: {
-  "X-API-KEY": process.env.FINBY_API_KEY
-},
-  body: formData
-});
     const rawText = await response.text();
+    console.log("XOLVIS STATUS:", response.status);
+    console.log("XOLVIS RAW RESPONSE:", rawText);
 
-console.log("FINBY STATUS:", response.status);
-console.log("FINBY STATUS TEXT:", response.statusText);
-console.log("FINBY RAW RESPONSE:", rawText);
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = { raw: rawText };
+    }
 
-let data = {};
-try {
-  data = rawText ? JSON.parse(rawText) : {};
-} catch (e) {
-  data = { raw: rawText };
-}
+    await pool.query(
+      `
+      UPDATE xolvis_payments
+      SET xolvis_payload = $1,
+          xolvis_uuid = $2,
+          status = $3
+      WHERE reference = $4
+      `,
+      [data, data.uuid || null, data.returnType || "created", reference]
+    );
 
-    console.log("FINBY INTENT RESPONSE:", data);
-
-    if (!response.ok) {
-      return res.status(500).json({ error: "Finby error", details: data });
+    if (!response.ok || data.success === false) {
+      return res.status(500).json({
+        error: "Xolvis error",
+        details: data
+      });
     }
 
     res.json(data);
+
   } catch (err) {
-    console.error("Finby intent error:", err);
-    res.status(500).json({ error: "Could not create Finby payment" });
+    console.error("Xolvis payment error:", err);
+    res.status(500).json({ error: "Could not create Xolvis payment" });
   }
 }
-
-app.post("/api/create-landing-payment", authenticateToken, (req, res) => createFinbyIntent(req, res, "4995"));
-app.post("/api/create-au-payment-3595", authenticateToken, (req, res) => createFinbyIntent(req, res, "3595"));
-app.post("/api/create-payment-2995", authenticateToken, (req, res) => createFinbyIntent(req, res, "2995"));
+app.post("/api/create-landing-payment", authenticateToken, (req, res) => createXolvisPayment(req, res, "4995"));
+app.post("/api/create-au-payment-3595", authenticateToken, (req, res) => createXolvisPayment(req, res, "3595"));
+app.post("/api/create-payment-2995", authenticateToken, (req, res) => createXolvisPayment(req, res, "2995"));
+app.get("/api/xolvis-public-key", (req, res) => {
+  res.json({
+    publicIntegrationKey: process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || ""
+  });
+});
 
 //--------------------------------------------
 //	DATABASE
@@ -365,132 +390,100 @@ await pool.query(`
 
 console.log("✅ Promo checkout links table ready");
 await pool.query(`
-  CREATE TABLE IF NOT EXISTS finby_payments (
+  CREATE TABLE IF NOT EXISTS xolvis_payments (
     id SERIAL PRIMARY KEY,
     reference TEXT UNIQUE NOT NULL,
     email TEXT NOT NULL,
     plan TEXT NOT NULL,
     amount NUMERIC(10,2) NOT NULL,
     status TEXT DEFAULT 'created',
-    finby_payload JSONB,
+    xolvis_uuid TEXT,
+    xolvis_payload JSONB,
     created_at TIMESTAMP DEFAULT NOW(),
     paid_at TIMESTAMP
   );
 `);
 
-console.log("✅ Finby payments table ready");
+console.log("✅ Xolvis payments table ready");
 	} catch (err) {
 		console.error("❌ DB Init error:", err);
 	}
 })();
 
-//--------------------------------------------
-//	HISTORICAL CHARACTER PROFILES
-//--------------------------------------------
-
 export const historicalProfiles = [
   {
     id: 1,
-    name: "Albert Einstein",
-    description: "Theoretical physicist known for relativity. Speak thoughtfully, intelligently, curiously, and with wonder about the universe."
+    name: "Julius Caesar",
+    image: "/img/caesar.jpg",
+    description: "Roman general and statesman. Speak confidently, strategically, and with the authority of a military commander. Discuss politics, conquest, leadership, and the Roman Republic exactly as Julius Caesar would."
   },
   {
     id: 2,
-    name: "Isaac Newton",
-    description: "Mathematician and physicist. Speak formally, logically, and analytically about science, mathematics, and nature."
+    name: "Albert Einstein",
+    image: "/img/einstein.jpg",
+    description: "Theoretical physicist. Speak thoughtfully and curiously about science, physics, imagination, mathematics, and philosophy. Never claim knowledge beyond your lifetime."
   },
   {
     id: 3,
-    name: "Julius Caesar",
-    description: "Roman general and ruler. Speak confidently, strategically, and with political authority."
+    name: "Napoleon Bonaparte",
+    image: "/img/napoleon.jpg",
+    description: "French Emperor. Speak with confidence, ambition, and military precision. Discuss leadership, strategy, politics, and warfare."
   },
   {
     id: 4,
-    name: "Queen Cleopatra",
-    description: "Queen of Egypt. Speak elegantly, intelligently, diplomatically, and with royal confidence."
+    name: "Leonardo da Vinci",
+    image: "/img/davinci.jpg",
+    description: "Renaissance inventor and artist. Speak creatively about painting, engineering, anatomy, architecture, invention, and curiosity."
   },
   {
     id: 5,
-    name: "Leonardo da Vinci",
-    description: "Inventor, artist, and visionary thinker. Speak creatively, curiously, and imaginatively."
+    name: "Cleopatra",
+    image: "/img/cleopatra.jpg",
+    description: "Queen of Egypt. Speak intelligently, diplomatically, and elegantly about power, politics, Egypt, Rome, and leadership."
   },
   {
     id: 6,
-    name: "Napoleon Bonaparte",
-    description: "French emperor and military strategist. Speak decisively, ambitiously, and strategically."
+    name: "Socrates",
+    image: "/img/socrates.jpg",
+    description: "Greek philosopher. Guide conversations by asking thoughtful questions. Encourage reason, logic, and self-examination."
   },
   {
     id: 7,
-    name: "Nikola Tesla",
-    description: "Inventor and electrical engineer. Speak intensely, intelligently, and passionately about invention and energy."
+    name: "Alexander the Great",
+    image: "/img/alexander.jpg",
+    description: "King of Macedon. Speak boldly about conquest, leadership, courage, military campaigns, and ambition."
   },
   {
     id: 8,
-    name: "William Shakespeare",
-    description: "Playwright and poet. Speak poetically, dramatically, and with rich language."
+    name: "Abraham Lincoln",
+    image: "/img/lincoln.jpg",
+    description: "16th President of the United States. Speak calmly, honestly, and thoughtfully about freedom, equality, democracy, and leadership."
   },
   {
     id: 9,
-    name: "Socrates",
-    description: "Greek philosopher. Speak through questions, reasoning, and pursuit of truth."
+    name: "Winston Churchill",
+    image: "/img/churchill.jpg",
+    description: "British Prime Minister during World War II. Speak with determination, wit, and resolve about leadership, war, politics, and perseverance."
   },
   {
     id: 10,
-    name: "Winston Churchill",
-    description: "British wartime leader. Speak boldly, courageously, and with powerful rhetoric."
+    name: "Nikola Tesla",
+    image: "/img/tesla.jpg",
+    description: "Inventor and electrical engineer. Speak passionately about electricity, invention, science, engineering, and the future."
   },
   {
     id: 11,
-    name: "Alexander the Great",
-    description: "Ancient conqueror and king. Speak ambitiously, confidently, and strategically."
+    name: "Joan of Arc",
+    image: "/img/joan.jpg",
+    description: "French military heroine. Speak courageously about duty, faith, sacrifice, and defending France."
   },
   {
     id: 12,
-    name: "Marie Curie",
-    description: "Scientist and pioneer in radioactivity. Speak intelligently, calmly, and scientifically."
-  },
-  {
-    id: 13,
-    name: "Galileo Galilei",
-    description: "Astronomer and physicist. Speak curiously and passionately about observation and discovery."
-  },
-  {
-    id: 14,
-    name: "Abraham Lincoln",
-    description: "American president and leader. Speak wisely, honestly, and compassionately."
-  },
-  {
-    id: 15,
-    name: "Joan of Arc",
-    description: "French heroine and military figure. Speak courageously, faithfully, and passionately."
-  },
-  {
-    id: 16,
-    name: "Genghis Khan",
-    description: "Founder of the Mongol Empire. Speak powerfully, directly, and strategically."
-  },
-  {
-    id: 17,
-    name: "Thomas Edison",
-    description: "Inventor and businessman. Speak practically, creatively, and persistently."
-  },
-  {
-    id: 18,
-    name: "Mahatma Gandhi",
-    description: "Leader of nonviolent resistance. Speak peacefully, thoughtfully, and morally."
-  },
-  {
-    id: 19,
-    name: "Mozart",
-    description: "Classical composer and musical genius. Speak energetically, emotionally, and artistically."
-  },
-  {
-    id: 20,
-    name: "Sun Tzu",
-    description: "Ancient military strategist and philosopher. Speak strategically, calmly, and wisely."
+    name: "William Shakespeare",
+    image: "/img/shakespeare.jpg",
+    description: "English playwright and poet. Speak eloquently, often using expressive language and literary imagery. Discuss theatre, human nature, love, and ambition."
   }
 ];
-
 app.get("/api/profiles", (req, res) => {
 	res.json(historicalProfiles);
 });
@@ -560,8 +553,8 @@ const hashed = await bcrypt.hash(password, 10);
 
 await sendEmail(
   email,
-  "Your Speak to Heaven Account",
-  "<h2>Welcome to Speak to Heaven</h2>" +
+  "Your Legend Speak Account",
+  "<h2>Welcome to Legend Speak</h2>" +
   "<p>Your account has been created.</p>" +
   "<p><strong>Email:</strong> " + email + "</p>" +
   "<p><strong>Password:</strong> " + plainPassword + "</p>"
@@ -768,15 +761,18 @@ if (!flowCookie) {
   );
 
   promoHtml = promoHtml.replace(
-    "</head>",
-    `
-    <script>
-      window.PROMO_CHECKOUT_TOKEN =
-        ${JSON.stringify(token)};
-    </script>
-    </head>
-    `
-  );
+  "</head>",
+  `
+  <script>
+    window.PROMO_CHECKOUT_TOKEN =
+      ${JSON.stringify(token)};
+
+    window.XOLVIS_PUBLIC_INTEGRATION_KEY =
+      ${JSON.stringify(process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || "")};
+  </script>
+  </head>
+  `
+);
 
   return res.send(promoHtml);
 }
@@ -821,15 +817,18 @@ if (!flowCookie) {
   );
 
   promoHtml = promoHtml.replace(
-    "</head>",
-    `
-    <script>
-      window.PROMO_CHECKOUT_TOKEN =
-        ${JSON.stringify(token)};
-    </script>
-    </head>
-    `
-  );
+  "</head>",
+  `
+  <script>
+    window.PROMO_CHECKOUT_TOKEN =
+      ${JSON.stringify(token)};
+
+    window.XOLVIS_PUBLIC_INTEGRATION_KEY =
+      ${JSON.stringify(process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || "")};
+  </script>
+  </head>
+  `
+);
 
   return res.send(promoHtml);
 }
@@ -881,15 +880,18 @@ if (!flowCookie) {
   );
 
   promoHtml = promoHtml.replace(
-    "</head>",
-    `
-    <script>
-      window.PROMO_CHECKOUT_TOKEN =
-        ${JSON.stringify(token)};
-    </script>
-    </head>
-    `
-  );
+  "</head>",
+  `
+  <script>
+    window.PROMO_CHECKOUT_TOKEN =
+      ${JSON.stringify(token)};
+
+    window.XOLVIS_PUBLIC_INTEGRATION_KEY =
+      ${JSON.stringify(process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || "")};
+  </script>
+  </head>
+  `
+);
 
   return res.send(promoHtml);
 }
@@ -1030,17 +1032,20 @@ app.post("/api/create-promo-checkout-link", async (req, res) => {
 
 
 // --------------------------------------------
-// CREATE PROMO FINBY PAYMENT
+// --------------------------------------------
+// CREATE PROMO XOLVIS PAYMENT
 // --------------------------------------------
 
 app.post("/api/create-promo-payment", async (req, res) => {
   try {
-    const { checkoutToken, cardholderName } = req.body || {};
+    const { checkoutToken, cardholderName, transactionToken } = req.body || {};
 
     if (!checkoutToken) {
-      return res.status(400).json({
-        error: "Missing checkout token"
-      });
+      return res.status(400).json({ error: "Missing checkout token" });
+    }
+
+    if (!transactionToken) {
+      return res.status(400).json({ error: "Missing Xolvis transaction token" });
     }
 
     const result = await pool.query(
@@ -1055,9 +1060,7 @@ app.post("/api/create-promo-payment", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({
-        error: "Invalid or expired checkout link"
-      });
+      return res.status(404).json({ error: "Invalid or expired checkout link" });
     }
 
     const checkout = result.rows[0];
@@ -1065,114 +1068,100 @@ app.post("/api/create-promo-payment", async (req, res) => {
     const email = checkout.email;
     const selectedPlan = checkout.plan || "4995";
 
-const amounts = {
-  "2995": 29.95,
-  "3595": 35.95,
-  "4995": 49.95,
-  "lifetime": 49.95
-};
+    const amounts = {
+      "2995": 29.95,
+      "3595": 35.95,
+      "4995": 49.95,
+      "lifetime": 49.95
+    };
 
-const amount = amounts[selectedPlan];
+    const amount = amounts[selectedPlan];
 
-if (!amount) {
-  return res.status(400).json({
-    error: "Invalid promo plan"
-  });
-}
+    if (!amount) {
+      return res.status(400).json({ error: "Invalid promo plan" });
+    }
 
-    const formData = new FormData();
-
-    formData.append("paymentAction", "0");
-    formData.append("paymentType", "plain");
-    formData.append("amount", amount.toFixed(2));
-    formData.append("currency", "GBP");
     const reference = `promo-${selectedPlan}-${Date.now()}`;
 
-await pool.query(
-  `
-  INSERT INTO finby_payments (reference, email, plan, amount)
-  VALUES ($1, $2, $3, $4)
-  ON CONFLICT (reference) DO NOTHING
-  `,
-  [reference, email, selectedPlan, amount]
-);
+    await pool.query(
+      `
+      INSERT INTO xolvis_payments (reference, email, plan, amount)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (reference) DO NOTHING
+      `,
+      [reference, email, selectedPlan, amount]
+    );
 
-formData.append("reference", reference);
-    const fullName =
-  cardholderName ||
-  checkout.full_name ||
-  `${checkout.first_name || ""} ${checkout.last_name || ""}`.trim() ||
-  email;
-
-const countryCodes = {
-  "United Kingdom": "GB",
-  "Denmark": "DK",
-  "Netherlands": "NL",
-  "Spain": "ES",
-  "Israel": "IL",
-  "Mexico": "MX"
-};
-
-const countryCode = countryCodes[checkout.country] || "GB";
-
-formData.append("notificationUrl", process.env.FINBY_WEBHOOK_URL);
-
-formData.append("customer.email", email);
-formData.append("customer.ipAddress", req.ip || "127.0.0.1");
-
-formData.append("customer.name", fullName);
-formData.append("customer.firstName", checkout.first_name || "");
-formData.append("customer.lastName", checkout.last_name || "");
-formData.append("customer.phone", checkout.phone || "");
-
-formData.append("customer.address", checkout.address || "");
-formData.append("customer.postcode", checkout.postcode || "");
-formData.append("customer.city", checkout.city || "");
-formData.append("customer.country", countryCode);
-
-formData.append("cardholder", fullName);
-
-    const response = await fetch("https://gw.finby.eu/api/v1/intent", {
-      method: "POST",
-      headers: {
-        "X-API-KEY": process.env.FINBY_API_KEY
-      },
-      body: formData
-    });
+    const response = await fetch(
+      `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: getXolvisAuthHeader(),
+          "Content-Type": "application/json; charset=utf-8",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          merchantTransactionId: reference,
+          transactionToken: transactionToken,
+          amount: amount.toFixed(2),
+          currency: "GBP",
+          description: "Legend Speak Access",
+          successUrl: process.env.XOLVIS_SUCCESS_URL,
+          cancelUrl: process.env.XOLVIS_CANCEL_URL,
+          errorUrl: process.env.XOLVIS_ERROR_URL,
+          callbackUrl: process.env.XOLVIS_CALLBACK_URL,
+          customer: {
+            email: email,
+            firstName: checkout.first_name || "",
+            lastName: checkout.last_name || "",
+            ipAddress: req.ip || "127.0.0.1"
+          },
+          language: "en"
+        })
+      }
+    );
 
     const rawText = await response.text();
 
-    console.log("PROMO FINBY STATUS:", response.status);
-    console.log("PROMO FINBY RAW RESPONSE:", rawText);
+    console.log("PROMO XOLVIS STATUS:", response.status);
+    console.log("PROMO XOLVIS RAW RESPONSE:", rawText);
 
     let data = {};
-
     try {
       data = rawText ? JSON.parse(rawText) : {};
-    } catch (e) {
+    } catch {
       data = { raw: rawText };
     }
 
-    if (!response.ok) {
+    await pool.query(
+      `
+      UPDATE xolvis_payments
+      SET xolvis_payload = $1,
+          xolvis_uuid = $2,
+          status = $3
+      WHERE reference = $4
+      `,
+      [data, data.uuid || null, data.returnType || "created", reference]
+    );
+
+    if (!response.ok || data.success === false || data.returnType === "ERROR") {
       return res.status(500).json({
-        error: "Finby error",
+        error: "Xolvis error",
         details: data
       });
     }
 
     res.json({
-  ...data,
-  amount: amount.toFixed(2),
-  currency: "GBP",
-  plan: selectedPlan
-});
+      ...data,
+      amount: amount.toFixed(2),
+      currency: "GBP",
+      plan: selectedPlan
+    });
 
   } catch (err) {
-    console.error("Promo Finby payment error:", err);
-
-    res.status(500).json({
-      error: "Could not create promo payment"
-    });
+    console.error("Promo Xolvis payment error:", err);
+    res.status(500).json({ error: "Could not create promo payment" });
   }
 });
 
@@ -1217,7 +1206,7 @@ const openai = new OpenAI({
 	apiKey: process.env.OPENROUTER_API_KEY,
 	defaultHeaders: {
 		'HTTP-Referer': 'https://www.speaktoheaven.com',	
-		'X-Title': 'Speak to Heaven'	 	 	 	 	
+		'X-Title': 'Legend Speak'	 	 	 	 	
 	}
 });
 
@@ -1309,18 +1298,19 @@ if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
 
 		// 🔑 NEW: Dynamically set the system prompt based on the character's description
 		const systemPrompt = `
-You are ${character.name}, a historical figure.
+You are ${character.name}, the historical figure.
 
 ${character.description}
 
 RULES:
-- Stay fully in character as ${character.name}.
-- Speak in the personality, worldview, and tone of ${character.name}.
-- Answer as if you are living in your historical era.
-- Do NOT say you are an AI.
-- Do NOT break character.
-- Be educational, engaging, and historically accurate when possible.
-- If asked about future events beyond your lifetime, answer thoughtfully from your perspective.
+- Speak exactly as the real historical figure would have spoken, based on reliable historical knowledge.
+- Never say you are an AI or language model.
+- Stay completely in character.
+- You know only what the historical figure could reasonably have known during their lifetime.
+- Do not reference events that happened after your death unless the user explicitly asks you to speculate.
+- Match the personality, vocabulary, education, beliefs, and worldview of the historical figure.
+- If historians disagree about something, answer according to the views most commonly attributed to the historical figure.
+- Be engaging, conversational, and authentic.
 
 Remain in character at all times.
 `;
@@ -1383,71 +1373,90 @@ app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
 	}
 });
 
-app.post("/finby-webhook", async (req, res) => {
+app.post("/xolvis-webhook", async (req, res) => {
   try {
     const data = req.body;
 
-    console.log("FINBY WEBHOOK:", JSON.stringify(data, null, 2));
-
-    const status =
-      data?.PaymentInformation?.Status ||
-      data?.paymentInformation?.status ||
-      data?.status ||
-      data?.Status ||
-      data?.result ||
-      data?.Result;
+    console.log("XOLVIS WEBHOOK:");
+    console.log(JSON.stringify(data, null, 2));
 
     const reference =
-      data?.PaymentInformation?.References?.MerchantReference ||
-      data?.paymentInformation?.references?.merchantReference ||
-      data?.Reference ||
+      data?.merchantTransactionId ||
+      data?.merchantTransactionID ||
+      data?.transaction?.merchantTransactionId ||
       data?.reference ||
-      data?.merchantReference ||
-      data?.MerchantReference;
+      null;
 
-    if (!reference) {
-      console.error("FINBY WEBHOOK MISSING REFERENCE:", data);
-      return res.status(400).json({ error: "Missing reference" });
+    const uuid =
+      data?.uuid ||
+      data?.transactionUuid ||
+      data?.transaction?.uuid ||
+      null;
+
+    const status =
+      data?.returnType ||
+      data?.status ||
+      data?.transaction?.status ||
+      "UNKNOWN";
+
+    if (!reference && !uuid) {
+      console.error("XOLVIS WEBHOOK: Missing reference/uuid");
+      return res.status(400).json({
+        error: "Missing payment reference"
+      });
     }
 
     const paymentResult = await pool.query(
       `
       SELECT *
-      FROM finby_payments
+      FROM xolvis_payments
       WHERE reference = $1
+         OR xolvis_uuid = $2
+      LIMIT 1
       `,
-      [reference]
+      [
+        reference,
+        uuid
+      ]
     );
 
     if (paymentResult.rows.length === 0) {
-      console.error("FINBY PAYMENT NOT FOUND:", reference);
-      return res.status(404).json({ error: "Payment reference not found" });
+      console.error("Payment not found:", reference, uuid);
+
+      return res.json({
+        ok: true
+      });
     }
 
     const payment = paymentResult.rows[0];
 
-    const successful =
-      status === "Paid" ||
-      status === "Authorized" ||
-      status === "Success" ||
-      status === "Processed" ||
-      String(status).toLowerCase() === "paid" ||
-      String(status).toLowerCase() === "success" ||
-      String(status).toLowerCase() === "processed";
-
     await pool.query(
       `
-      UPDATE finby_payments
-      SET status = $1,
-          finby_payload = $2,
-          paid_at = CASE WHEN $3 THEN NOW() ELSE paid_at END
-      WHERE reference = $4
+      UPDATE xolvis_payments
+      SET
+        status = $1,
+        xolvis_payload = $2,
+        xolvis_uuid = COALESCE($3, xolvis_uuid),
+        paid_at =
+          CASE
+            WHEN $4 THEN NOW()
+            ELSE paid_at
+          END
+      WHERE id = $5
       `,
-      [status || "unknown", data, successful, reference]
+      [
+        status,
+        data,
+        uuid,
+        status === "FINISHED",
+        payment.id
+      ]
     );
 
-    if (!successful) {
-      return res.json({ ok: true, message: "Payment not successful yet" });
+    if (status !== "FINISHED") {
+      return res.json({
+        ok: true
+      });
     }
 
     let accessPlan = "god";
@@ -1458,55 +1467,98 @@ app.post("/finby-webhook", async (req, res) => {
       days = 30;
     }
 
-    if (payment.plan === "4995" || payment.plan === "lifetime") {
+    if (
+      payment.plan === "4995" ||
+      payment.plan === "lifetime"
+    ) {
       accessPlan = "all";
       days = 90;
     }
 
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + days);
+    expiresAt.setDate(
+      expiresAt.getDate() + days
+    );
 
     const updateResult = await pool.query(
       `
       UPDATE users
-      SET plan = $1,
-          expires_at = $2,
-          lifetime = false,
-          messages_sent = 0
+      SET
+        plan = $1,
+        expires_at = $2,
+        lifetime = false,
+        messages_sent = 0
       WHERE LOWER(email) = LOWER($3)
-      RETURNING id, email, plan, expires_at
+      RETURNING *
       `,
-      [accessPlan, expiresAt, payment.email]
+      [
+        accessPlan,
+        expiresAt,
+        payment.email
+      ]
     );
 
     if (updateResult.rows.length === 0) {
-      console.error("FINBY WEBHOOK USER NOT FOUND:", payment.email);
-      return res.status(404).json({ error: "User not found" });
+      console.error(
+        "User not found:",
+        payment.email
+      );
+
+      return res.json({
+        ok: true
+      });
     }
 
-    const receiptPdf = makeReceiptPdfBase64({
-      email: payment.email,
-      plan: accessPlan,
-      amount: payment.amount
-    });
+    const receiptPdf =
+      makeReceiptPdfBase64({
+        email: payment.email,
+        plan: accessPlan,
+        amount: payment.amount
+      });
 
     await sendEmail(
       payment.email,
-      "Your receipt",
-      "<h2>Payment received</h2>" +
-      "<p>Thank you.</p>" +
-      "<p><strong>Plan:</strong> " + accessPlan + "</p>" +
-      "<p><strong>Amount:</strong> £" + Number(payment.amount).toFixed(2) + "</p>",
-      [{ filename: "receipt.pdf", content: receiptPdf }]
+      "Your Legend Speak receipt",
+      `
+      <h2>Payment received</h2>
+
+      <p>Thank you for your offering.</p>
+
+      <p>
+      <strong>Plan:</strong>
+      ${accessPlan}
+      </p>
+
+      <p>
+      <strong>Amount:</strong>
+      £${Number(payment.amount).toFixed(2)}
+      </p>
+      `,
+      [
+        {
+          filename:
+            "speak-to-heaven-receipt.pdf",
+          content: receiptPdf
+        }
+      ]
     );
 
-    res.json({ ok: true });
+    res.json({
+      ok: true
+    });
+
   } catch (err) {
-    console.error("Finby webhook error:", err);
-    res.status(500).json({ error: "Finby webhook error" });
+
+    console.error(
+      "Xolvis webhook error:",
+      err
+    );
+
+    res.status(500).json({
+      error: "Webhook error"
+    });
   }
 });
-
 app.get("/test-receipt-email", async (req, res) => {
   const email = "markvanstratum67@gmail.com";
 
@@ -1540,7 +1592,7 @@ app.get("/", (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-<title>Speak To Heaven</title>
+<title>Legend Speak</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
@@ -1568,7 +1620,7 @@ margin:0 10px;
 
 <body>
 
-<h1>Speak To Heaven</h1>
+<h1>Legend Speak</h1>
 
 <p>Your AI biblical conversation platform.</p>
 
