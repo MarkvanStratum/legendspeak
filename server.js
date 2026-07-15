@@ -158,8 +158,16 @@ function getCookie(req, name) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 function getXolvisAuthHeader() {
-  const raw = `${process.env.XOLVIS_API_USER}:${process.env.XOLVIS_API_PASSWORD}`;
-  return "Basic " + Buffer.from(raw).toString("base64");
+  const user = (process.env.XOLVIS_API_USER || "").trim();
+  const password = (process.env.XOLVIS_API_PASSWORD || "").trim();
+
+  const raw = `${user}:${password}`;
+
+  console.log("XOLVIS API USER:", JSON.stringify(user));
+  console.log("XOLVIS PASSWORD LENGTH:", password.length);
+  console.log("XOLVIS BASE URL:", JSON.stringify(process.env.XOLVIS_BASE_URL));
+
+  return "Basic " + Buffer.from(raw, "utf8").toString("base64");
 }
 
 async function createXolvisPayment(req, res, fixedPlan = null) {
