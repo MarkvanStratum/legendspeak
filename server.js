@@ -177,9 +177,9 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     const selectedPlan = fixedPlan || plan;
 
     const amounts = {
-  "2995": 22.95,
-  "3595": 26.95,
-  "4995": 37.95,
+  "2295": 22.95,
+  "2695": 26.95,
+  "3795": 37.95,
   "lifetime": 37.95
 };
 
