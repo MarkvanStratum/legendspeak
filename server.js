@@ -212,7 +212,7 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
           merchantTransactionId: reference,
           amount: amount.toFixed(2),
           currency: "GBP",
-          description: "Legend Speak Access",
+          description: "Speak to Heaven Access",
           successUrl: process.env.XOLVIS_SUCCESS_URL,
           cancelUrl: process.env.XOLVIS_CANCEL_URL,
           errorUrl: process.env.XOLVIS_ERROR_URL,
@@ -221,7 +221,10 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
             email: email,
             ipAddress: req.ip || "127.0.0.1"
           },
-          language: "en"
+          language: "en",
+          extraData: {
+            "3dsecure": "MANDATORY"
+          }
         })
       }
     );
