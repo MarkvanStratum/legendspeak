@@ -1543,6 +1543,11 @@ app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
 	}
 });
 
+app.get("/xolvis-webhook", (req, res) => {
+  console.log("XOLVIS WEBHOOK GET TEST");
+  res.send("Xolvis webhook endpoint is reachable");
+});
+
 app.post("/xolvis-webhook", async (req, res) => {
   try {
     const data = req.body;
