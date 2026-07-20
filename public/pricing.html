@@ -148,25 +148,30 @@
     const params = new URLSearchParams(window.location.search);
     const affiliateRef = params.get('ref') || '';
 
-    // Route through your hidden promotion framework infrastructure
+    const loginToken = localStorage.getItem("jwt");
+
+    if (!loginToken) {
+      alert("Please log in to your account before selecting a plan.");
+      window.location.href = "/";
+      return;
+    }
+
     const response = await fetch("/api/create-promo-checkout-link", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${loginToken}`
       },
       body: JSON.stringify({
         plan: planName,
-        step2File: "checkout.html", // Set target step 2 layout filename
+        step2File: "checkout.html",
         currency: "GBP",
         amount: priceAmount,
         sourcePage: window.location.pathname,
         ref: affiliateRef,
-        
-        // Blank placeholder details to comply with dynamic initialization parameters
         firstName: "",
         lastName: "",
-        name: prompt("Please enter your full name for the payment:") || "",
-email: prompt("Please enter your email address for the payment receipt:") || "",
+        name: "",
         phonePrefix: "+44",
         phone: "0000000000",
         address: "Main Sanctuary Street",
@@ -182,9 +187,9 @@ email: prompt("Please enter your email address for the payment receipt:") || "",
     if (data.url) {
       window.location.href = data.url;
     } else {
-      alert("Unable to process selection at this moment. Please try again.");
+      alert(data.error || "Unable to process selection at this moment. Please try again.");
     }
   }
- </script>
+</script>
 </body>
 </html>
