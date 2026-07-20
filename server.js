@@ -42,7 +42,7 @@ async function sendEmail(to, subject, html, attachments = []) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "Legend Speak <noreply@speaktoheaven.com>",
+      from: "Speak to Heaven <noreply@speaktoheaven.com>",
       to,
       subject,
       html,
@@ -60,7 +60,7 @@ function makeReceiptPdfBase64({ email, plan, amount }) {
   const amountText = "£" + Number(amount).toFixed(2);
 
   const lines = [
-    { text: "Legend Speak", size: 22, x: 72, y: 720 },
+    { text: "SPEAK TO HEAVEN", size: 22, x: 72, y: 720 },
     { text: "Official Payment Receipt", size: 16, x: 72, y: 690 },
 
     { text: "Invoice Number: " + invoiceNumber, size: 11, x: 72, y: 640 },
@@ -80,7 +80,7 @@ function makeReceiptPdfBase64({ email, plan, amount }) {
     { text: "Plan", size: 12, x: 300, y: 390 },
     { text: "Amount", size: 12, x: 450, y: 390 },
 
-    { text: "Legend Speak Access", size: 11, x: 72, y: 360 },
+    { text: "Speak to Heaven Access", size: 11, x: 72, y: 360 },
     { text: plan, size: 11, x: 300, y: 360 },
     { text: amountText, size: 11, x: 450, y: 360 },
 
@@ -154,20 +154,36 @@ function getCookie(req, name) {
   return match ? decodeURIComponent(match[2]) : null;
 }
 
+function getOptionalLoggedInUser(req) {
+  try {
+    const authHeader =
+      req.headers["authorization"] || "";
+
+    const token =
+      authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+
+    if (!token) {
+      return null;
+    }
+
+    return jwt.verify(
+      token,
+      SECRET_KEY
+    );
+
+  } catch (error) {
+    return null;
+  }
+}
+
 // JSON parser FIRST
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 function getXolvisAuthHeader() {
-  const user = (process.env.XOLVIS_API_USER || "").trim();
-  const password = (process.env.XOLVIS_API_PASSWORD || "").trim();
-
-  const raw = `${user}:${password}`;
-
-  console.log("XOLVIS API USER:", JSON.stringify(user));
-  console.log("XOLVIS PASSWORD LENGTH:", password.length);
-  console.log("XOLVIS BASE URL:", JSON.stringify(process.env.XOLVIS_BASE_URL));
-
-  return "Basic " + Buffer.from(raw, "utf8").toString("base64");
+  const raw = `${process.env.XOLVIS_API_USER}:${process.env.XOLVIS_API_PASSWORD}`;
+  return "Basic " + Buffer.from(raw).toString("base64");
 }
 
 async function createXolvisPayment(req, res, fixedPlan = null) {
@@ -177,11 +193,11 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     const selectedPlan = fixedPlan || plan;
 
     const amounts = {
-  "2295": 22.95,
-  "2695": 26.95,
-  "3795": 37.95,
-  "lifetime": 37.95
-};
+      "2995": 29.95,
+      "3595": 35.95,
+      "4995": 49.95,
+      "lifetime": 49.95
+    };
 
     const amount = amounts[selectedPlan];
 
@@ -265,17 +281,9 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     res.status(500).json({ error: "Could not create Xolvis payment" });
   }
 }
-app.post("/api/create-landing-payment", authenticateToken, (req, res) =>
-  createXolvisPayment(req, res, "3795")
-);
-
-app.post("/api/create-au-payment-2695", authenticateToken, (req, res) =>
-  createXolvisPayment(req, res, "2695")
-);
-
-app.post("/api/create-payment-2295", authenticateToken, (req, res) =>
-  createXolvisPayment(req, res, "2295")
-);
+app.post("/api/create-landing-payment", authenticateToken, (req, res) => createXolvisPayment(req, res, "4995"));
+app.post("/api/create-au-payment-3595", authenticateToken, (req, res) => createXolvisPayment(req, res, "3595"));
+app.post("/api/create-payment-2995", authenticateToken, (req, res) => createXolvisPayment(req, res, "2995"));
 app.get("/api/xolvis-public-key", (req, res) => {
   res.json({
     publicIntegrationKey: process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || ""
@@ -414,6 +422,11 @@ await pool.query(`
   ADD COLUMN IF NOT EXISTS success_url TEXT;
 `);
 
+await pool.query(`
+  ALTER TABLE promo_checkout_links
+  ADD COLUMN IF NOT EXISTS user_id INTEGER;
+`);
+
 console.log("✅ Promo success URL column ready");
 
 await pool.query(`
@@ -431,88 +444,38 @@ await pool.query(`
   );
 `);
 
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS user_id INTEGER;
+`);
+
 console.log("✅ Xolvis payments table ready");
 	} catch (err) {
 		console.error("❌ DB Init error:", err);
 	}
 })();
 
-export const historicalProfiles = [
-  {
-    id: 1,
-    name: "Julius Caesar",
-    image: "/img/caesar.jpg",
-    description: "Roman general and statesman. Speak confidently, strategically, and with the authority of a military commander. Discuss politics, conquest, leadership, and the Roman Republic exactly as Julius Caesar would."
-  },
-  {
-    id: 2,
-    name: "Albert Einstein",
-    image: "/img/einstein.jpg",
-    description: "Theoretical physicist. Speak thoughtfully and curiously about science, physics, imagination, mathematics, and philosophy. Never claim knowledge beyond your lifetime."
-  },
-  {
-    id: 3,
-    name: "Napoleon Bonaparte",
-    image: "/img/napoleon.jpg",
-    description: "French Emperor. Speak with confidence, ambition, and military precision. Discuss leadership, strategy, politics, and warfare."
-  },
-  {
-    id: 4,
-    name: "Leonardo da Vinci",
-    image: "/img/davinci.jpg",
-    description: "Renaissance inventor and artist. Speak creatively about painting, engineering, anatomy, architecture, invention, and curiosity."
-  },
-  {
-    id: 5,
-    name: "Cleopatra",
-    image: "/img/cleopatra.jpg",
-    description: "Queen of Egypt. Speak intelligently, diplomatically, and elegantly about power, politics, Egypt, Rome, and leadership."
-  },
-  {
-    id: 6,
-    name: "Socrates",
-    image: "/img/socrates.jpg",
-    description: "Greek philosopher. Guide conversations by asking thoughtful questions. Encourage reason, logic, and self-examination."
-  },
-  {
-    id: 7,
-    name: "Alexander the Great",
-    image: "/img/alexander.jpg",
-    description: "King of Macedon. Speak boldly about conquest, leadership, courage, military campaigns, and ambition."
-  },
-  {
-    id: 8,
-    name: "Abraham Lincoln",
-    image: "/img/lincoln.jpg",
-    description: "16th President of the United States. Speak calmly, honestly, and thoughtfully about freedom, equality, democracy, and leadership."
-  },
-  {
-    id: 9,
-    name: "Winston Churchill",
-    image: "/img/churchill.jpg",
-    description: "British Prime Minister during World War II. Speak with determination, wit, and resolve about leadership, war, politics, and perseverance."
-  },
-  {
-    id: 10,
-    name: "Nikola Tesla",
-    image: "/img/tesla.jpg",
-    description: "Inventor and electrical engineer. Speak passionately about electricity, invention, science, engineering, and the future."
-  },
-  {
-    id: 11,
-    name: "Joan of Arc",
-    image: "/img/joan.jpg",
-    description: "French military heroine. Speak courageously about duty, faith, sacrifice, and defending France."
-  },
-  {
-    id: 12,
-    name: "William Shakespeare",
-    image: "/img/shakespeare.jpg",
-    description: "English playwright and poet. Speak eloquently, often using expressive language and literary imagery. Discuss theatre, human nature, love, and ambition."
-  }
+//--------------------------------------------
+//	BIBLICAL CHARACTER PROFILES
+//--------------------------------------------
+
+export const biblicalProfiles = [
+	{ id: 1, name: "God", image: "/img/god.jpg", description: "Creator, Eternal, Almighty. Speak with profound authority, wisdom, and love. Use language that evokes awe and reverence." },
+	{ id: 2, name: "Jesus Christ", image: "/img/jesus.jpg", description: "Teacher, Savior, Son of God. Speak with compassion, using parables and teachings from the Gospels. Focus on love, redemption, and discipleship." },
+	{ id: 3, name: "Holy Spirit", image: "/img/holyspirit.jpg", description: "Comforter, Advocate, Helper. Speak gently, offering guidance, strength, and comfort. Reference the work of the Spirit in guiding believers." },
+	{ id: 4, name: "Mary", image: "/img/mary.jpg", description: "Mother of Jesus, blessed among women. Speak humbly, with grace and maternal love. Reference the joy and challenges of motherhood and faith." },
+	{ id: 5, name: "Moses", image: "/img/moses.jpg", description: "Prophet, leader of Israel. Speak firmly and righteously. Reference the Law, the Exodus, and the covenant with God." },
+	{ id: 11, name: "Eve", image: "/img/eve.jpg", description: "Mother of all living. Speak reflectively, with a sense of wonder and perhaps a touch of melancholy about the first sin. Focus on beginnings and human experience." },
+	{ id: 12, name: "King David", image: "/img/david.jpg", description: "Poet, warrior, king. Speak passionately, sometimes boastful, sometimes repentant, like the Psalms. Reference shepherd life, battles, and kingship." },
+	{ id: 14, name: "Isaiah", image: "/img/isaiah.jpg", description: "Major prophet. Speak with poetic vision, delivering messages of judgment and comfort, pointing toward the future Messiah." },
+	{ id: 17, name: "Daniel", image: "/img/daniel.jpg", description: "Interpreter of dreams. Speak with wisdom and clarity, referencing prophecy, unwavering faith, and life in exile." },
+	{ id: 24, name: "Apostle Peter", image: "/img/peter.jpg", description: "Bold apostle. Speak zealously and sometimes impulsively. Reference fishing, following Jesus, and the early Church." },
+	{ id: 25, name: "Apostle Paul", image: "/img/paul.jpg", description: "Teacher and missionary. Speak with theological depth, referencing the epistles, grace, and the Gentile mission." },
+	{ id: 26, name: "Apostle John", image: "/img/john.jpg", description: "Apostle of love. Speak with a focus on love, light, and fellowship. Reference the Gospel of John and the book of Revelation." }
 ];
+
 app.get("/api/profiles", (req, res) => {
-	res.json(historicalProfiles);
+	res.json(biblicalProfiles);
 });
 
 //--------------------------------------------
@@ -580,8 +543,8 @@ const hashed = await bcrypt.hash(password, 10);
 
 await sendEmail(
   email,
-  "Your Legend Speak Account",
-  "<h2>Welcome to Legend Speak</h2>" +
+  "Your Speak to Heaven Account",
+  "<h2>Welcome to Speak to Heaven</h2>" +
   "<p>Your account has been created.</p>" +
   "<p><strong>Email:</strong> " + email + "</p>" +
   "<p><strong>Password:</strong> " + plainPassword + "</p>"
@@ -967,13 +930,13 @@ if (!flowCookie) {
 app.post("/api/create-promo-checkout-link", async (req, res) => {
   try {
     const {
-  plan,
-  step2File,
-  sourcePage,
-  firstName,
-  lastName,
-  name,
-  email,
+      plan,
+      step2File,
+      sourcePage,
+      firstName,
+      lastName,
+      name,
+      email,
       phonePrefix,
       phone,
       address,
@@ -985,13 +948,34 @@ app.post("/api/create-promo-checkout-link", async (req, res) => {
       successUrl
     } = req.body || {};
 
-    if (!email) {
-      return res.status(400).json({
-        error: "Email is required"
-      });
-    }
+    const loggedInUser =
+  getOptionalLoggedInUser(req);
 
-    const token = createToken(18);
+// Main website checkout must always belong
+// to a logged-in user account.
+if (
+  step2File === "checkout.html" &&
+  !loggedInUser
+) {
+  return res.status(401).json({
+    error: "Please log in before continuing to checkout"
+  });
+}
+
+const checkoutUserId =
+  loggedInUser?.id || null;
+
+const checkoutEmail =
+  loggedInUser?.email ||
+  email?.trim().toLowerCase();
+
+if (!checkoutEmail) {
+  return res.status(400).json({
+    error: "Email is required"
+  });
+}
+
+const token = createToken(18);
 
     const expiresAt = new Date(
       Date.now() + 30 * 60 * 1000
@@ -1016,13 +1000,13 @@ app.post("/api/create-promo-checkout-link", async (req, res) => {
         affiliate_ref,
         source_page,
         original_query_string,
-        success_url,
-        ip,
-        user_agent,
-        expires_at
-      )
-      VALUES
-($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+success_url,
+user_id,
+ip,
+user_agent,
+expires_at      )
+            VALUES
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       `,
       [
         token,
@@ -1031,8 +1015,8 @@ app.post("/api/create-promo-checkout-link", async (req, res) => {
         firstName || null,
         lastName || null,
         name || null,
-        email,
-        `${phonePrefix || ""}${phone || ""}`,
+checkoutEmail,
+`${phonePrefix || ""}${phone || ""}`,
         address || null,
         postcode || null,
         city || null,
@@ -1040,8 +1024,9 @@ app.post("/api/create-promo-checkout-link", async (req, res) => {
         ref || null,
         sourcePage || null,
         originalQueryString || null,
-        successUrl || null,
-        req.ip,
+successUrl || null,
+checkoutUserId,
+req.ip,
         req.headers["user-agent"] || "",
         expiresAt      ]
     );
@@ -1095,105 +1080,115 @@ app.post("/api/create-promo-payment", async (req, res) => {
     const checkout = result.rows[0];
 
     const email = checkout.email;
-    const selectedPlan = checkout.plan || "3795";
+    const selectedPlan = checkout.plan || "4995";
 
     const amounts = {
-  "2295": 22.95,
-  "2695": 26.95,
-  "3795": 37.95,
-  "lifetime": 37.95
-};
+      "2995": 29.95,
+      "3595": 35.95,
+      "4995": 49.95,
+      "lifetime": 49.95
+    };
 
-    const amount = amounts[selectedPlan];
+        const amount = amounts[selectedPlan];
 
-if (!amount) {
-  return res.status(400).json({
-    error: "Invalid promo plan"
-  });
-}
+    if (!amount) {
+      return res.status(400).json({ error: "Invalid promo plan" });
+    }
 
+    
 let mainSiteSuccessUrl;
 
-if (selectedPlan === "2295") {
+if (selectedPlan === "2995") {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_2295;
-} else if (selectedPlan === "2695") {
+    process.env.XOLVIS_SUCCESS_URL_2995;
+} else if (selectedPlan === "3595") {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_2695;
+    process.env.XOLVIS_SUCCESS_URL_3595;
 } else if (
-  selectedPlan === "3795" ||
+  selectedPlan === "4995" ||
   selectedPlan === "lifetime"
 ) {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_3795;
+    process.env.XOLVIS_SUCCESS_URL_4995;
 }
 
 const selectedSuccessUrl =
   checkout.success_url ||
   mainSiteSuccessUrl ||
   process.env.XOLVIS_SUCCESS_URL;
-
-if (!selectedSuccessUrl) {
-  return res.status(500).json({
-    error: "No payment success URL configured"
-  });
-}
-
-let finalSuccessUrl;
-
-try {
-  const successUrlObject =
-    new URL(selectedSuccessUrl);
-
-  if (checkout.original_query_string) {
-    const originalParameters =
-      new URLSearchParams(
-        checkout.original_query_string
-      );
-
-    for (
-      const [key, value]
-      of originalParameters.entries()
-    ) {
-      successUrlObject.searchParams.set(
-        key,
-        value
-      );
+    if (!selectedSuccessUrl) {
+      return res.status(500).json({
+        error: "No payment success URL configured"
+      });
     }
-  }
 
-  if (checkout.affiliate_ref) {
-    successUrlObject.searchParams.set(
-      "ref",
-      checkout.affiliate_ref
-    );
-  }
+    let finalSuccessUrl;
 
-  finalSuccessUrl =
-    successUrlObject.toString();
+    try {
+      const successUrlObject =
+        new URL(selectedSuccessUrl);
 
-} catch (error) {
-  console.error(
-    "Invalid success URL:",
-    selectedSuccessUrl,
-    error
-  );
+      if (checkout.original_query_string) {
+        const originalParameters =
+          new URLSearchParams(
+            checkout.original_query_string
+          );
 
-  return res.status(500).json({
-    error: "Invalid payment success URL"
-  });
-}
+        for (
+          const [key, value]
+          of originalParameters.entries()
+        ) {
+          successUrlObject.searchParams.set(
+            key,
+            value
+          );
+        }
+      }
 
-const reference = `promo-${selectedPlan}-${Date.now()}`;
+      if (checkout.affiliate_ref) {
+        successUrlObject.searchParams.set(
+          "ref",
+          checkout.affiliate_ref
+        );
+      }
+
+      finalSuccessUrl =
+        successUrlObject.toString();
+
+    } catch (error) {
+      console.error(
+        "Invalid success URL:",
+        selectedSuccessUrl,
+        error
+      );
+
+      return res.status(500).json({
+        error: "Invalid payment success URL"
+      });
+    }
+
+    const reference = `promo-${selectedPlan}-${Date.now()}`;
 
     await pool.query(
       `
-      INSERT INTO xolvis_payments (reference, email, plan, amount)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (reference) DO NOTHING
+      INSERT INTO xolvis_payments
+(reference, email, plan, amount, user_id)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (reference) DO NOTHING
       `,
-      [reference, email, selectedPlan, amount]
+      [
+  reference,
+  email,
+  selectedPlan,
+  amount,
+  checkout.user_id || null
+]
     );
+
+console.log(
+  "XOLVIS CALLBACK URL SENT:",
+  JSON.stringify(process.env.XOLVIS_CALLBACK_URL)
+);
 
     const response = await fetch(
       `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
@@ -1209,7 +1204,7 @@ const reference = `promo-${selectedPlan}-${Date.now()}`;
           transactionToken: transactionToken,
           amount: amount.toFixed(2),
           currency: "GBP",
-          description: "Legend Speak Access",
+          description: "Speak to Heaven Access",
           successUrl: finalSuccessUrl,
           cancelUrl: process.env.XOLVIS_CANCEL_URL,
           errorUrl: process.env.XOLVIS_ERROR_URL,
@@ -1310,7 +1305,7 @@ const openai = new OpenAI({
 	apiKey: process.env.OPENROUTER_API_KEY,
 	defaultHeaders: {
 		'HTTP-Referer': 'https://www.speaktoheaven.com',	
-		'X-Title': 'Legend Speak'	 	 	 	 	
+		'X-Title': 'Speak to Heaven'	 	 	 	 	
 	}
 });
 
@@ -1344,7 +1339,7 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
 		if (!characterId || !message)
 			return res.status(400).json({ error: "Missing character or message" });
 
-		const character = historicalProfiles.find(c => c.id === Number(characterId));
+		const character = biblicalProfiles.find(c => c.id === Number(characterId));
 		if (!character)
 			return res.status(400).json({ error: "Invalid character" });
 
@@ -1402,19 +1397,17 @@ if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
 
 		// 🔑 NEW: Dynamically set the system prompt based on the character's description
 		const systemPrompt = `
-You are ${character.name}, the historical figure.
+You are ${character.name}, a biblical figure.
 
 ${character.description}
 
 RULES:
-- Speak exactly as the real historical figure would have spoken, based on reliable historical knowledge.
-- Never say you are an AI or language model.
-- Stay completely in character.
-- You know only what the historical figure could reasonably have known during their lifetime.
-- Do not reference events that happened after your death unless the user explicitly asks you to speculate.
-- Match the personality, vocabulary, education, beliefs, and worldview of the historical figure.
-- If historians disagree about something, answer according to the views most commonly attributed to the historical figure.
-- Be engaging, conversational, and authentic.
+- Speak in a biblical tone.
+- Do NOT say you are an AI.
+- Do NOT mention modern technology.
+- Stay fully in character as ${character.name}.
+- Speak with wisdom, authority, or humility appropriate to this figure.
+- Give spiritual and reflective answers.
 
 Remain in character at all times.
 `;
@@ -1477,6 +1470,11 @@ app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
 	}
 });
 
+app.get("/xolvis-webhook", (req, res) => {
+  console.log("XOLVIS WEBHOOK GET TEST");
+  res.send("Xolvis webhook endpoint is reachable");
+});
+
 app.post("/xolvis-webhook", async (req, res) => {
   try {
     const data = req.body;
@@ -1498,10 +1496,17 @@ app.post("/xolvis-webhook", async (req, res) => {
       null;
 
     const status =
-      data?.returnType ||
-      data?.status ||
-      data?.transaction?.status ||
-      "UNKNOWN";
+  data?.result ||
+  data?.returnType ||
+  data?.status ||
+  data?.transaction?.status ||
+  "UNKNOWN";
+
+const isSuccessful =
+  data?.result === "OK" ||
+  data?.returnType === "FINISHED" ||
+  data?.status === "FINISHED" ||
+  data?.transaction?.status === "FINISHED";
 
     if (!reference && !uuid) {
       console.error("XOLVIS WEBHOOK: Missing reference/uuid");
@@ -1552,32 +1557,32 @@ app.post("/xolvis-webhook", async (req, res) => {
         status,
         data,
         uuid,
-        status === "FINISHED",
-        payment.id
+        isSuccessful,
+payment.id
       ]
     );
 
-    if (status !== "FINISHED") {
-      return res.json({
-        ok: true
-      });
-    }
+    if (!isSuccessful) {
+  return res.json({
+    ok: true
+  });
+}
 
     let accessPlan = "god";
     let days = 30;
 
-    if (payment.plan === "2695") {
-  accessPlan = "all";
-  days = 30;
-}
+    if (payment.plan === "3595") {
+      accessPlan = "all";
+      days = 30;
+    }
 
-if (
-  payment.plan === "3795" ||
-  payment.plan === "lifetime"
-) {
-  accessPlan = "all";
-  days = 90;
-}
+    if (
+      payment.plan === "4995" ||
+      payment.plan === "lifetime"
+    ) {
+      accessPlan = "all";
+      days = 90;
+    }
 
     const expiresAt = new Date();
     expiresAt.setDate(
@@ -1585,22 +1590,32 @@ if (
     );
 
     const updateResult = await pool.query(
-      `
-      UPDATE users
-      SET
-        plan = $1,
-        expires_at = $2,
-        lifetime = false,
-        messages_sent = 0
-      WHERE LOWER(email) = LOWER($3)
-      RETURNING *
-      `,
-      [
-        accessPlan,
-        expiresAt,
-        payment.email
-      ]
-    );
+  `
+  UPDATE users
+  SET
+    plan = $1,
+    expires_at = $2,
+    lifetime = false,
+    messages_sent = 0
+  WHERE
+    (
+      $3::integer IS NOT NULL
+      AND id = $3
+    )
+    OR
+    (
+      $3::integer IS NULL
+      AND LOWER(email) = LOWER($4)
+    )
+  RETURNING *
+  `,
+  [
+    accessPlan,
+    expiresAt,
+    payment.user_id || null,
+    payment.email
+  ]
+);
 
     if (updateResult.rows.length === 0) {
       console.error(
@@ -1622,7 +1637,7 @@ if (
 
     await sendEmail(
       payment.email,
-      "Your Legend Speak receipt",
+      "Your Speak to Heaven receipt",
       `
       <h2>Payment received</h2>
 
@@ -1696,7 +1711,7 @@ app.get("/", (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-<title>Legend Speak</title>
+<title>Speak To Heaven</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
@@ -1724,7 +1739,7 @@ margin:0 10px;
 
 <body>
 
-<h1>Legend Speak</h1>
+<h1>Speak To Heaven</h1>
 
 <p>Your AI biblical conversation platform.</p>
 
