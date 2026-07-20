@@ -246,7 +246,7 @@
 
     <div class="form-section">
         <div class="brand-header">
-            <h1 class="brand-title">Legend Speak</h1>
+            <h1 class="brand-title">SPEAK TO HEAVEN</h1>
             <div class="brand-sub">Sacred Biblical AI Sanctuary Conversations</div>
         </div>
 
@@ -441,18 +441,27 @@ form.addEventListener("submit", async (event) => {
         },
         async function (transactionToken, cardData) {
             try {
-                const response = await fetch("/api/create-promo-payment", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        checkoutToken: tokenFromServer,
-                        cardholderName: cardholderName,
-                        transactionToken: transactionToken,
-                        cardData: cardData
-                    })
-                });
+                const loginToken = localStorage.getItem("token");
+
+const requestHeaders = {
+    "Content-Type": "application/json"
+};
+
+if (loginToken) {
+    requestHeaders["Authorization"] =
+        `Bearer ${loginToken}`;
+}
+
+const response = await fetch("/api/create-promo-payment", {
+    method: "POST",
+    headers: requestHeaders,
+    body: JSON.stringify({
+        checkoutToken: tokenFromServer,
+        cardholderName: cardholderName,
+        transactionToken: transactionToken,
+        cardData: cardData
+    })
+});
 
                 const text = await response.text();
 
@@ -476,8 +485,7 @@ form.addEventListener("submit", async (event) => {
                 showMessage("success", "Payment completed successfully. Your access will be activated shortly.");
 
                 setTimeout(() => {
-    window.location.href =
-        data.successUrl || "/";
+    window.location.href = data.successUrl || "/";
 }, 1800);
 
             } catch (error) {
