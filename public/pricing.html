@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Sacred Offerings — Speak to Heaven</title>
+  <title>Sacred Offerings — Legend Speak</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -106,38 +106,38 @@
   <div class="pricing-container">
     <div class="card">
       <div class="plan-name">Messenger Tier</div>
-      <div class="price">£29.95</div>
+      <div class="price">£22.95</div>
       <div class="duration">One-Time Payment. 1 month access.</div>
       <ul class="features">
         <li>Access to Selected Divine Figures</li>
         <li>Standard Response Time</li>
         <li>Standard Conversation Memory</li>
       </ul>
-      <button class="btn" onclick="checkout('2995', 29.95)">Select Offering</button>
+      <button class="btn" onclick="checkout('2295', 22.95)">Select Offering</button>
     </div>
 
     <div class="card">
       <div class="plan-name">Celestial Access</div>
-      <div class="price">£35.95</div>
+      <div class="price">£26.95</div>
       <div class="duration">One-Time Payment • 30 Days</div>
       <ul class="features">
         <li>Access to All Divine Figures</li>
         <li>Priority Response Time</li>
         <li>Full Conversation Memory</li>
       </ul>
-      <button class="btn" onclick="checkout('3595', 35.95)">Select Offering</button>
+      <button class="btn" onclick="checkout('2695', 26.95)">Select Offering</button>
     </div>
 
     <div class="card">
       <div class="plan-name">3 month full access</div>
-      <div class="price">£49.95</div>
+      <div class="price">£37.95</div>
       <div class="duration">One-Time Payment •</div>
       <ul class="features">
-        <li>3 month access.</li>
+        <li>3 month Access</li>
         <li>All Future Prophets Included</li>
         <li>The Ultimate Divine Bond</li>
       </ul>
-      <button class="btn" onclick="checkout('lifetime', 49.95)">Select Offering</button>
+      <button class="btn" onclick="checkout('lifetime', 37.95)">Select Offering</button>
     </div>
   </div>
 
@@ -149,23 +149,12 @@
     const affiliateRef = params.get('ref') || '';
 
     // Route through your hidden promotion framework infrastructure
-const loginToken = localStorage.getItem("token");
-
-if (!loginToken) {
-  alert("Please log in to your account before selecting a plan.");
-  window.location.href = "/";
-  return;
-}
-
-const requestHeaders = {
-  "Content-Type": "application/json",
-  "Authorization": `Bearer ${loginToken}`
-};
-
-const response = await fetch("/api/create-promo-checkout-link", {
-  method: "POST",
-  headers: requestHeaders,
-  body: JSON.stringify({
+    const response = await fetch("/api/create-promo-checkout-link", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
         plan: planName,
         step2File: "checkout.html", // Set target step 2 layout filename
         currency: "GBP",
@@ -173,17 +162,17 @@ const response = await fetch("/api/create-promo-checkout-link", {
         sourcePage: window.location.pathname,
         ref: affiliateRef,
         
-        // Customer account email is taken automatically
-// from the logged-in user's account
-firstName: "",
-lastName: "",
-name: "",
-phonePrefix: "+44",
-phone: "0000000000",
-address: "Main Sanctuary Street",
-postcode: "SW1A 1AA",
-city: "London",
-country: "United Kingdom",
+        // Blank placeholder details to comply with dynamic initialization parameters
+        firstName: "",
+        lastName: "",
+        name: prompt("Please enter your full name for the payment:") || "",
+email: prompt("Please enter your email address for the payment receipt:") || "",
+        phonePrefix: "+44",
+        phone: "0000000000",
+        address: "Main Sanctuary Street",
+        postcode: "SW1A 1AA",
+        city: "London",
+        country: "United Kingdom",
         originalQueryString: window.location.search.replace(/^\?/, "")
       })
     });
