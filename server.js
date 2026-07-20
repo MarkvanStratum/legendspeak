@@ -147,11 +147,38 @@ function hashSecret(secret) {
 
 function getCookie(req, name) {
   const cookies = req.headers.cookie || "";
+
   const match = cookies.match(
     new RegExp("(^| )" + name + "=([^;]+)")
   );
 
-  return match ? decodeURIComponent(match[2]) : null;
+  return match
+    ? decodeURIComponent(match[2])
+    : null;
+}
+
+function getOptionalLoggedInUser(req) {
+  try {
+    const authHeader =
+      req.headers["authorization"] || "";
+
+    const token =
+      authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+
+    if (!token) {
+      return null;
+    }
+
+    return jwt.verify(
+      token,
+      SECRET_KEY
+    );
+
+  } catch (error) {
+    return null;
+  }
 }
 
 // JSON parser FIRST
@@ -414,6 +441,11 @@ await pool.query(`
   ADD COLUMN IF NOT EXISTS success_url TEXT;
 `);
 
+await pool.query(`
+  ALTER TABLE promo_checkout_links
+  ADD COLUMN IF NOT EXISTS user_id INTEGER;
+`);
+
 console.log("✅ Promo success URL column ready");
 
 await pool.query(`
@@ -429,6 +461,11 @@ await pool.query(`
     created_at TIMESTAMP DEFAULT NOW(),
     paid_at TIMESTAMP
   );
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS user_id INTEGER;
 `);
 
 console.log("✅ Xolvis payments table ready");
@@ -985,66 +1022,88 @@ app.post("/api/create-promo-checkout-link", async (req, res) => {
       successUrl
     } = req.body || {};
 
-    if (!email) {
-      return res.status(400).json({
-        error: "Email is required"
-      });
-    }
+    const loggedInUser =
+  getOptionalLoggedInUser(req);
 
-    const token = createToken(18);
+if (
+  step2File === "checkout.html" &&
+  !loggedInUser
+) {
+  return res.status(401).json({
+    error: "Please log in before continuing to checkout"
+  });
+}
+
+const checkoutUserId =
+  loggedInUser?.id || null;
+
+const checkoutEmail =
+  loggedInUser?.email ||
+  email?.trim().toLowerCase();
+
+if (!checkoutEmail) {
+  return res.status(400).json({
+    error: "Email is required"
+  });
+}
+
+const token = createToken(18);
 
     const expiresAt = new Date(
       Date.now() + 30 * 60 * 1000
     );
 
     await pool.query(
-      `
-      INSERT INTO promo_checkout_links
-      (
-        token,
-        step2_file,
-        plan,
-        first_name,
-        last_name,
-        full_name,
-        email,
-        phone,
-        address,
-        postcode,
-        city,
-        country,
-        affiliate_ref,
-        source_page,
-        original_query_string,
-        success_url,
-        ip,
-        user_agent,
-        expires_at
-      )
-      VALUES
-($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-      `,
-      [
-        token,
-        step2File || "sth-fi-uk2.html",
-        plan || "lifetime",
-        firstName || null,
-        lastName || null,
-        name || null,
-        email,
-        `${phonePrefix || ""}${phone || ""}`,
-        address || null,
-        postcode || null,
-        city || null,
-        country || "United Kingdom",
-        ref || null,
-        sourcePage || null,
-        originalQueryString || null,
-        successUrl || null,
-        req.ip,
-        req.headers["user-agent"] || "",
-        expiresAt      ]
-    );
+  `
+  INSERT INTO promo_checkout_links
+  (
+    token,
+    step2_file,
+    plan,
+    first_name,
+    last_name,
+    full_name,
+    email,
+    phone,
+    address,
+    postcode,
+    city,
+    country,
+    affiliate_ref,
+    source_page,
+    original_query_string,
+    success_url,
+    user_id,
+    ip,
+    user_agent,
+    expires_at
+  )
+  VALUES
+  ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+  `,
+  [
+    token,
+    step2File || "sth-fi-uk2.html",
+    plan || "lifetime",
+    firstName || null,
+    lastName || null,
+    name || null,
+    checkoutEmail,
+    `${phonePrefix || ""}${phone || ""}`,
+    address || null,
+    postcode || null,
+    city || null,
+    country || "United Kingdom",
+    ref || null,
+    sourcePage || null,
+    originalQueryString || null,
+    successUrl || null,
+    checkoutUserId,
+    req.ip,
+    req.headers["user-agent"] || "",
+    expiresAt
+  ]
+);
 
     res.json({
       url: `/c/${token}`
@@ -1187,13 +1246,20 @@ try {
 const reference = `promo-${selectedPlan}-${Date.now()}`;
 
     await pool.query(
-      `
-      INSERT INTO xolvis_payments (reference, email, plan, amount)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (reference) DO NOTHING
-      `,
-      [reference, email, selectedPlan, amount]
-    );
+  `
+  INSERT INTO xolvis_payments
+  (reference, email, plan, amount, user_id)
+  VALUES ($1, $2, $3, $4, $5)
+  ON CONFLICT (reference) DO NOTHING
+  `,
+  [
+    reference,
+    email,
+    selectedPlan,
+    amount,
+    checkout.user_id || null
+  ]
+);
 
     const response = await fetch(
       `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
@@ -1498,10 +1564,17 @@ app.post("/xolvis-webhook", async (req, res) => {
       null;
 
     const status =
-      data?.returnType ||
-      data?.status ||
-      data?.transaction?.status ||
-      "UNKNOWN";
+  data?.result ||
+  data?.returnType ||
+  data?.status ||
+  data?.transaction?.status ||
+  "UNKNOWN";
+
+const isSuccessful =
+  data?.result === "OK" ||
+  data?.returnType === "FINISHED" ||
+  data?.status === "FINISHED" ||
+  data?.transaction?.status === "FINISHED";
 
     if (!reference && !uuid) {
       console.error("XOLVIS WEBHOOK: Missing reference/uuid");
@@ -1552,16 +1625,16 @@ app.post("/xolvis-webhook", async (req, res) => {
         status,
         data,
         uuid,
-        status === "FINISHED",
-        payment.id
+        isSuccessful,
+payment.id
       ]
     );
 
-    if (status !== "FINISHED") {
-      return res.json({
-        ok: true
-      });
-    }
+    if (!isSuccessful) {
+  return res.json({
+    ok: true
+  });
+}
 
     let accessPlan = "god";
     let days = 30;
@@ -1585,22 +1658,32 @@ if (
     );
 
     const updateResult = await pool.query(
-      `
-      UPDATE users
-      SET
-        plan = $1,
-        expires_at = $2,
-        lifetime = false,
-        messages_sent = 0
-      WHERE LOWER(email) = LOWER($3)
-      RETURNING *
-      `,
-      [
-        accessPlan,
-        expiresAt,
-        payment.email
-      ]
-    );
+  `
+  UPDATE users
+  SET
+    plan = $1,
+    expires_at = $2,
+    lifetime = false,
+    messages_sent = 0
+  WHERE
+    (
+      $3::integer IS NOT NULL
+      AND id = $3
+    )
+    OR
+    (
+      $3::integer IS NULL
+      AND LOWER(email) = LOWER($4)
+    )
+  RETURNING *
+  `,
+  [
+    accessPlan,
+    expiresAt,
+    payment.user_id || null,
+    payment.email
+  ]
+);
 
     if (updateResult.rows.length === 0) {
       console.error(
