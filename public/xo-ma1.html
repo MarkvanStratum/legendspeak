@@ -44,11 +44,11 @@ font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 }
 
 .wrap{max-width:1100px;margin:0 auto;padding:18px 14px 60px}
-.safe{background:#0a0a0a;color:#fff;font-size:12px;padding:6px 10px;text-align:center;}
+.safe{background:#0a0a0a;color:#fff;font-size:12px;padding:6px 10px}
 .grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px}
 @media(max-width:980px){.grid{grid-template-columns:1fr}}
 .card{background:#fff;border:1px solid var(--line);padding:22px;border-radius:12px}
-.page-title{font-size:28px;font-weight:900;display:flex;gap:8px;margin:6px 0 14px;align-items:center;}
+.page-title{font-size:28px;font-weight:900;display:flex;gap:8px;margin:6px 0 14px}
 .stars{color:#f6b80c}
 .reviews{color:#5b6b82;font-size:13px}
 .h2{font-size:18px;font-weight:800;margin:10px 0 14px}
@@ -58,7 +58,7 @@ font-family:Inter,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
 .input,.select,.el{width:100%;border:1px solid #cfd6e4;border-radius:10px;
 padding:12px;font-size:15px;background:#fff}
 .btn{width:100%;padding:12px;border:none;border-radius:12px;
-background:#16a34a;color:#fff;font-weight:900;cursor:pointer;font-size:16px;}
+background:#16a34a;color:#fff;font-weight:900;cursor:pointer}
 .err{display:none;background:#fff1f1;border:1px solid #f5bcbc;
 padding:10px;border-radius:10px;margin-top:10px;color:#9a1a1a}
 .err[aria-hidden="false"]{display:block}
@@ -126,6 +126,7 @@ sessionStorage.setItem("orig_qs", location.search.replace(/^\?/, ""));
 
 <div class="form-grid">
 <input id="billingStreet" class="input" placeholder="العنوان (الشارع والرقم)" style="grid-column:1/-1" required>
+
 <input id="billingPostcode" class="input" placeholder="الرمز البريدي" required>
 <input id="billingCity" class="input" placeholder="المدينة" required>
 </div>
@@ -136,7 +137,7 @@ sessionStorage.setItem("orig_qs", location.search.replace(/^\?/, ""));
 </div>
 
 <div class="form-grid">
-<select id="phonePrefix" class="select" dir="ltr" style="text-align: right;">
+<select id="phonePrefix" class="select">
 <option value="+212">+212 — المغرب</option>
 </select>
 <input id="phoneNumber" class="input" placeholder="رقم الهاتف" required>
@@ -165,7 +166,7 @@ sessionStorage.setItem("orig_qs", location.search.replace(/^\?/, ""));
 <div style="font-weight:800">تسليم فوري</div>
 <div class="sub">وصول رقمي فوري</div>
 </div>
-<div style="margin-right:auto;margin-left:0;font-weight:800">مجاناً</div>
+<div style="margin-left:auto;font-weight:800">مجاناً</div>
 </div>
 
 <div style="margin-top:14px;font-weight:800">ملخص الطلب</div>
@@ -279,8 +280,8 @@ nextBtn.onclick = async () => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        plan: "2295",
-        step2File: "xo-ma2.html", 
+        plan: "2295", // Usamos el plan 2295 ya configurado en tu backend[cite: 1, 2]
+        step2File: "xo-mx2.html", 
         currency: "GBP",
         amount: 22.95,
         sourcePage: window.location.href,
