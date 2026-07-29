@@ -228,6 +228,8 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
   [reference, email, selectedPlan, amount]
 );
 
+
+
     const response = await fetch(
       `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
       {
@@ -1295,6 +1297,13 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 ]
 );
 
+const trackingCallbackUrl =
+  process.env.XOLVIS_CALLBACK_URL +
+  "?clickid=" +
+  encodeURIComponent(binomClickid) +
+  "&affiliate_source=" +
+  encodeURIComponent(affiliateSource);
+
     const response = await fetch(
       `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
       {
@@ -1313,7 +1322,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
           successUrl: finalSuccessUrl,
           cancelUrl: process.env.XOLVIS_CANCEL_URL,
           errorUrl: process.env.XOLVIS_ERROR_URL,
-          callbackUrl: process.env.XOLVIS_CALLBACK_URL,
+          callbackUrl: trackingCallbackUrl,
           customer: {
             email: email,
             firstName: checkout.first_name || "",
