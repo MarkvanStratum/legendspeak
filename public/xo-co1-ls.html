@@ -198,9 +198,6 @@ Pago Seguro 🔒 <span class="stars">★★★★★</span>
 const params = new URLSearchParams(window.location.search);
 const affiliateRef = params.get('ref');
 
-if (!affiliateRef) {
-    window.location.replace('https://www.speaktoheaven.com');
-}
 
 window.addEventListener('DOMContentLoaded', () => {
 
@@ -311,7 +308,7 @@ nextBtn.onclick = async () => {
     }
 
     let nextUrl =
-  window.location.origin +
+  "https://www.legendspeak.net" +
   data.url +
   "?ref=" + encodeURIComponent(affiliateRef || "") +
   "&sub1=" + encodeURIComponent(qs.get("sub1") || "") +
