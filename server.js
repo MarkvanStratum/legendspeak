@@ -1180,9 +1180,12 @@ const originalParams =
   new URLSearchParams(checkout.original_query_string || "");
 
 const affiliateSource =
-  originalParams.get("affiliate_source")
+  originalParams.get("affiliate_source") || "";
 
-    const email = checkout.email;
+const binomClickid =
+  originalParams.get("clickid") || clickid || "";
+
+const email = checkout.email;
     const selectedPlan = checkout.plan || "3795";
 
     const amounts = {
@@ -1287,7 +1290,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
   selectedPlan,
   amount,
   checkout.user_id || null,
-  clickid || null,
+  binomClickid || null,
   affiliateSource || null
 ]
 );
