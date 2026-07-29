@@ -1180,7 +1180,7 @@ const originalParams =
   new URLSearchParams(checkout.original_query_string || "");
 
 const affiliateSource =
-  originalParams.get("source") || "";
+  originalParams.get("affiliate_source")
 
     const email = checkout.email;
     const selectedPlan = checkout.plan || "3795";
