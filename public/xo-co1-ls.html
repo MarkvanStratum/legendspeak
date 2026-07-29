@@ -313,9 +313,12 @@ nextBtn.onclick = async () => {
     let nextUrl =
   window.location.origin +
   data.url +
-  "?ref=" + encodeURIComponent(affiliateRef) +
+  "?ref=" + encodeURIComponent(affiliateRef || "") +
   "&sub1=" + encodeURIComponent(qs.get("sub1") || "") +
-  "&sub2=" + encodeURIComponent(qs.get("sub2") || "");
+  "&sub2=" + encodeURIComponent(qs.get("sub2") || "") +
+  "&pixel=" + encodeURIComponent(qs.get("pixel") || "") +
+  "&clickid=" + encodeURIComponent(qs.get("clickid") || "") +
+  "&affiliate_source=" + encodeURIComponent(qs.get("affiliate_source") || "");
 
 const subId = qs.get("sub_id");
 

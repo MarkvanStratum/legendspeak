@@ -482,11 +482,17 @@ payNow.onclick = () => {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        checkoutToken: tokenFromServer,
-                        cardholderName: cardholderName,
-                        transactionToken: transactionToken,
-                        cardData: cardData
-                    })
+    checkoutToken: tokenFromServer,
+    cardholderName: cardholderName,
+    transactionToken: transactionToken,
+    cardData: cardData,
+
+    clickid:
+        new URLSearchParams(window.location.search).get("clickid") || "",
+
+    affiliate_source:
+        new URLSearchParams(window.location.search).get("affiliate_source") || ""
+})
                 });
 
                 const text = await response.text();
