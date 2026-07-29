@@ -1610,10 +1610,14 @@ app.post("/xolvis-webhook", async (req, res) => {
   "UNKNOWN";
 
 const isSuccessful =
-  data?.result === "OK" ||
-  data?.returnType === "FINISHED" ||
-  data?.status === "FINISHED" ||
-  data?.transaction?.status === "FINISHED";
+  String(data?.result || "").toUpperCase() === "OK" ||
+  String(data?.result || "").toUpperCase() === "SUCCESS" ||
+  String(data?.returnType || "").toUpperCase() === "FINISHED" ||
+  String(data?.returnType || "").toUpperCase() === "SUCCESS" ||
+  String(data?.status || "").toUpperCase() === "FINISHED" ||
+  String(data?.status || "").toUpperCase() === "SUCCESS" ||
+  String(data?.transaction?.status || "").toUpperCase() === "FINISHED" ||
+  String(data?.transaction?.status || "").toUpperCase() === "SUCCESS";
 
     if (!reference && !uuid) {
       console.error("XOLVIS WEBHOOK: Missing reference/uuid");
