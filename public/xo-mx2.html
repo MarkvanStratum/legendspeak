@@ -486,7 +486,8 @@ payNow.onclick = () => {
     cardholderName: cardholderName,
     transactionToken: transactionToken,
     cardData: cardData,
-    clickid: new URLSearchParams(window.location.search).get("clickid") || ""
+    clickid: new URLSearchParams(window.location.search).get("clickid") || "",
+    affiliate_source: new URLSearchParams(window.location.search).get("affiliate_source") || ""
 })
                 });
 
