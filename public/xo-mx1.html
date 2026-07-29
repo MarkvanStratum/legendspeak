@@ -198,10 +198,6 @@ Pago Seguro 🔒 <span class="stars">★★★★★</span>
 const params = new URLSearchParams(window.location.search);
 const affiliateRef = params.get('ref');
 
-if (!affiliateRef) {
-    window.location.replace('https://www.speaktoheaven.com');
-}
-
 window.addEventListener('DOMContentLoaded', () => {
 
 const qs = new URLSearchParams(location.search);
@@ -313,9 +309,11 @@ nextBtn.onclick = async () => {
     let nextUrl =
   window.location.origin +
   data.url +
-  "?ref=" + encodeURIComponent(affiliateRef) +
+  "?ref=" + encodeURIComponent(affiliateRef || "") +
   "&sub1=" + encodeURIComponent(qs.get("sub1") || "") +
-  "&sub2=" + encodeURIComponent(qs.get("sub2") || "");
+  "&sub2=" + encodeURIComponent(qs.get("sub2") || "") +
+  "&pixel=" + encodeURIComponent(qs.get("pixel") || "") +
+  "&clickid=" + encodeURIComponent(qs.get("clickid") || "");
 
 const subId = qs.get("sub_id");
 
