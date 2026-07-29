@@ -1146,11 +1146,12 @@ const token = createToken(18);
 
 app.post("/api/create-promo-payment", async (req, res) => {
   try {
-    const {
+   const {
   checkoutToken,
   cardholderName,
   transactionToken,
-  clickid
+  clickid,
+  affiliate_source
 } = req.body || {};
 
     if (!checkoutToken) {
@@ -1182,7 +1183,9 @@ const originalParams =
   new URLSearchParams(checkout.original_query_string || "");
 
 const affiliateSource =
-  originalParams.get("affiliate_source") || "";
+  originalParams.get("affiliate_source") ||
+  affiliate_source ||
+  "";
 
 const binomClickid =
   originalParams.get("clickid") || clickid || "";
