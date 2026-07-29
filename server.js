@@ -218,13 +218,15 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     const reference = `speaktoheaven-${selectedPlan}-${Date.now()}`;
 
     await pool.query(
-      `
-      INSERT INTO xolvis_payments (reference, email, plan, amount)
-      VALUES ($1, $2, $3, $4)
-      ON CONFLICT (reference) DO NOTHING
-      `,
-      [reference, email, selectedPlan, amount]
-    );
+     
+  `
+    INSERT INTO xolvis_payments
+    (reference, email, plan, amount)
+    VALUES ($1, $2, $3, $4)
+    ON CONFLICT (reference) DO NOTHING
+  `,
+  [reference, email, selectedPlan, amount]
+);
 
     const response = await fetch(
       `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
@@ -476,6 +478,11 @@ await pool.query(`
 await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS binom_postback_sent BOOLEAN DEFAULT FALSE;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS affiliate_source TEXT;
 `);
 
 console.log("✅ Xolvis payments table ready");
@@ -1169,6 +1176,12 @@ app.post("/api/create-promo-payment", async (req, res) => {
 
     const checkout = result.rows[0];
 
+const originalParams =
+  new URLSearchParams(checkout.original_query_string || "");
+
+const affiliateSource =
+  originalParams.get("source") || "";
+
     const email = checkout.email;
     const selectedPlan = checkout.plan || "3795";
 
@@ -1264,18 +1277,19 @@ const reference = `promo-${selectedPlan}-${Date.now()}`;
     await pool.query(
   `
     INSERT INTO xolvis_payments
-    (reference, email, plan, amount, user_id, binom_clickid)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    (reference, email, plan, amount, user_id, binom_clickid, affiliate_source)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
     ON CONFLICT (reference) DO NOTHING
   `,
   [
-    reference,
-    email,
-    selectedPlan,
-    amount,
-    checkout.user_id || null,
-    clickid || null
-  ]
+  reference,
+  email,
+  selectedPlan,
+  amount,
+  checkout.user_id || null,
+  clickid || null,
+  affiliateSource || null
+]
 );
 
     const response = await fetch(
@@ -1663,14 +1677,19 @@ if (
   !payment.binom_postback_sent
 ) {
   try {
-    const binomUrl =
-      "http://trackingpower4.com/click" +
-      "?cnv_id=" +
-      encodeURIComponent(payment.binom_clickid);
+    const conversionUrl =
+  "https://trackingpower2.com/conversion" +
+  "?clickid=" +
+  encodeURIComponent(payment.binom_clickid) +
+  "&source=" +
+  encodeURIComponent(payment.affiliate_source || "");
 
-    console.log("SENDING BINOM POSTBACK:", binomUrl);
+console.log(
+  "SENDING CONVERSION TO TRACKINGPOWER2:",
+  conversionUrl
+);
 
-    const binomResponse = await fetch(binomUrl);
+const binomResponse = await fetch(conversionUrl);
     const binomText = await binomResponse.text();
 
     console.log(
