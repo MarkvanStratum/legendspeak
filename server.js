@@ -1697,7 +1697,7 @@ if (
 ) {
   try {
     const conversionUrl =
-  "https://trackingpower2.com/conversion" +
+  "" +
   "?clickid=" +
   encodeURIComponent(payment.binom_clickid) +
   "&affiliate_source=" +
