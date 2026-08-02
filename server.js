@@ -1310,12 +1310,13 @@ VALUES ($1, $2, $3, $4, $5, $6, $7)
 );
 
 const trackingCallbackUrl =
-  process.env.XOLVIS_CALLBACK_URL +
-  "?clickid=" +
-  encodeURIComponent(binomClickid) +
-  "&affiliate_source=" +
-  encodeURIComponent(affiliateSource);
+  process.env.XOLVIS_CALLBACK_URL;
 
+if (!trackingCallbackUrl) {
+  return res.status(500).json({
+    error: "XOLVIS_CALLBACK_URL is not configured"
+  });
+}
     const response = await fetch(
       `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
       {
@@ -1698,48 +1699,6 @@ payment.id
   return res.json({
     ok: true
   });
-}
-
-if (
-  payment.binom_clickid &&
-  !payment.binom_postback_sent
-) {
-  try {
-    const conversionUrl =
-  "" +
-  "?clickid=" +
-  encodeURIComponent(payment.binom_clickid) +
-  "&affiliate_source=" +
-  encodeURIComponent(payment.affiliate_source || "");
-
-console.log(
-  "SENDING CONVERSION TO TRACKINGPOWER2:",
-  conversionUrl
-);
-
-const binomResponse = await fetch(conversionUrl);
-    const binomText = await binomResponse.text();
-
-    console.log(
-      "BINOM POSTBACK RESPONSE:",
-      binomResponse.status,
-      binomText
-    );
-
-    if (binomResponse.ok) {
-      await pool.query(
-        `
-          UPDATE xolvis_payments
-          SET binom_postback_sent = TRUE
-          WHERE id = $1
-        `,
-        [payment.id]
-      );
-    }
-
-  } catch (error) {
-    console.error("BINOM POSTBACK ERROR:", error);
-  }
 }
 
     let accessPlan = "god";
