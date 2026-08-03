@@ -1159,6 +1159,7 @@ app.post("/api/create-promo-payment", async (req, res) => {
   checkoutToken,
   cardholderName,
   transactionToken,
+  cardData,
   clickid,
   affiliate_source
 } = req.body || {};
@@ -1170,6 +1171,69 @@ app.post("/api/create-promo-payment", async (req, res) => {
     if (!transactionToken) {
       return res.status(400).json({ error: "Missing Xolvis transaction token" });
     }
+
+// --------------------------------------------
+// SAFE CARD METADATA FROM XOLVIS PAYMENT.JS
+// --------------------------------------------
+
+const cardBin =
+  String(
+    cardData?.first_six_digits ||
+    cardData?.bin_digits ||
+    ""
+  )
+    .replace(/\D/g, "")
+    .slice(0, 8);
+
+const cardFingerprint =
+  typeof cardData?.fingerprint === "string"
+    ? cardData.fingerprint.trim()
+    : "";
+
+const cardType =
+  typeof cardData?.card_type === "string"
+    ? cardData.card_type.trim().toLowerCase()
+    : "";
+
+const cardLastFour =
+  String(cardData?.last_four_digits || "")
+    .replace(/\D/g, "")
+    .slice(-4);
+
+console.log("SAFE CARD METADATA:", {
+  bin: cardBin,
+  cardType,
+  lastFour: cardLastFour,
+  hasFingerprint: Boolean(cardFingerprint)
+});
+
+// --------------------------------------------
+// BLOCK CONFIGURED CARD BINS
+// --------------------------------------------
+
+const blockedCardBins =
+  String(process.env.BLOCKED_CARD_BINS || "")
+    .split(",")
+    .map(bin => bin.trim().replace(/\D/g, ""))
+    .filter(Boolean);
+
+const isBlockedBin =
+  Boolean(cardBin) &&
+  blockedCardBins.includes(cardBin);
+
+if (isBlockedBin) {
+  console.warn("PAYMENT BLOCKED BY BIN RULE:", {
+    bin: cardBin,
+    cardType,
+    lastFour: cardLastFour
+  });
+
+  return res.status(400).json({
+    success: false,
+    error: "This card cannot be accepted. Please use another payment method.",
+    code: "CARD_BIN_BLOCKED"
+  });
+}
 
     const result = await pool.query(
       `
