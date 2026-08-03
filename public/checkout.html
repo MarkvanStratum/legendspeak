@@ -448,15 +448,6 @@ form.addEventListener("submit", async (event) => {
             year: expYear
         },
         async function (transactionToken, cardData) {
-console.log(
-  "XOLVIS CARD DATA JSON:",
-  JSON.stringify(cardData, null, 2)
-);
-
-alert(
-  "XOLVIS CARD DATA:\n\n" +
-  JSON.stringify(cardData, null, 2)
-);
             try {
                 const loginToken = localStorage.getItem("jwt");
 
