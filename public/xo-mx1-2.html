@@ -48,9 +48,8 @@
             transition: border-color 0.15s;
         }
         .input-wrapper:focus-within { border-color: #1a73e8; box-shadow: 0 0 0 1px #1a73e8; }
-        .input-wrapper input, .input-wrapper select { border: none; outline: none; font-size: 15px; width: 100%; background: transparent; color: #1a1a1a; }
+        .input-wrapper input { border: none; outline: none; font-size: 15px; width: 100%; background: transparent; color: #1a1a1a; }
         .input-wrapper input::placeholder { color: #b0b0b0; }
-        .input-wrapper input:disabled { color: #6b6b6b; }
         .row { display: flex; gap: 14px; }
         .row .field-group { flex: 1; }
         .pay-btn {
@@ -105,55 +104,9 @@
     </div>
 
     <div class="field-group">
-        <label class="field-label" for="billingStreet">Dirección (Calle y Número)</label>
-        <div class="input-wrapper">
-            <input id="billingStreet" type="text" placeholder="Av. Insurgentes 123" required>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="field-group">
-            <label class="field-label" for="billingPostcode">Código Postal</label>
-            <div class="input-wrapper">
-                <input id="billingPostcode" type="text" placeholder="01000" required>
-            </div>
-        </div>
-        <div class="field-group">
-            <label class="field-label" for="billingCity">Ciudad / Municipio</label>
-            <div class="input-wrapper">
-                <input id="billingCity" type="text" placeholder="Ciudad de México" required>
-            </div>
-        </div>
-    </div>
-
-    <div class="field-group">
         <label class="field-label" for="emailInput">Correo Electrónico</label>
         <div class="input-wrapper">
             <input id="emailInput" type="email" placeholder="juan@ejemplo.com" required>
-        </div>
-    </div>
-
-    <div class="field-group">
-        <label class="field-label">País</label>
-        <div class="input-wrapper">
-            <input value="México" disabled>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="field-group" style="flex: 0 0 110px;">
-            <label class="field-label" for="phonePrefix">Prefijo</label>
-            <div class="input-wrapper">
-                <select id="phonePrefix">
-                    <option value="+52">+52</option>
-                </select>
-            </div>
-        </div>
-        <div class="field-group">
-            <label class="field-label" for="phoneNumber">Teléfono</label>
-            <div class="input-wrapper">
-                <input id="phoneNumber" type="tel" placeholder="5512345678" required>
-            </div>
         </div>
     </div>
 
@@ -193,12 +146,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const firstName = document.getElementById('firstName');
     const lastName = document.getElementById('lastName');
     const nameInput = document.getElementById('nameInput');
-    const billingStreet = document.getElementById('billingStreet');
-    const billingCity = document.getElementById('billingCity');
-    const billingPostcode = document.getElementById('billingPostcode');
     const emailInput = document.getElementById('emailInput');
-    const phonePrefix = document.getElementById('phonePrefix');
-    const phoneNumber = document.getElementById('phoneNumber');
     const err = document.getElementById('err');
     const overlay = document.getElementById("loading-overlay");
 
@@ -208,17 +156,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     if (qs.get('sub3')) firstName.value = d(qs.get('sub3'));
     if (qs.get('sub4')) lastName.value = d(qs.get('sub4'));
-    if (qs.get('sub5')) billingStreet.value = d(qs.get('sub5'));
-    if (qs.get('sub6')) billingPostcode.value = d(qs.get('sub6'));
-    if (qs.get('sub7')) billingCity.value = d(qs.get('sub7'));
     if (qs.get('sub9')) emailInput.value = d(qs.get('sub9'));
-    if (qs.get('sub10')) phoneNumber.value = d(qs.get('sub10')).replace(/[^\d]/g, '');
 
     nextBtn.onclick = async () => {
         err.setAttribute("aria-hidden", "true");
         nameInput.value = `${firstName.value} ${lastName.value}`.trim();
 
-        if (!firstName.value.trim() || !lastName.value.trim() || !billingStreet.value.trim() || !billingPostcode.value.trim() || !billingCity.value.trim() || !emailInput.value.trim() || !phoneNumber.value.trim()) {
+        if (!firstName.value.trim() || !lastName.value.trim() || !emailInput.value.trim()) {
             err.textContent = "Por favor, completa todos los campos requeridos.";
             err.setAttribute("aria-hidden", "false");
             return;
@@ -241,15 +185,10 @@ window.addEventListener('DOMContentLoaded', () => {
                     lastName: lastName.value.trim(),
                     name: nameInput.value.trim(),
                     email: emailInput.value.trim(),
-                    phonePrefix: phonePrefix.value,
-                    phone: phoneNumber.value.trim(),
-                    address: billingStreet.value.trim(),
-                    postcode: billingPostcode.value.trim(),
-                    city: billingCity.value.trim(),
                     country: "México",
                     ref: affiliateRef,
                     originalQueryString: sessionStorage.getItem("orig_qs") || "",
-                    successUrl: "https://cudsr.bemobtrcks.com/go/40f5ab33-ff2e-46aa-88c8-8fab25a5f548"
+                    successUrl: "https://cudsr.bemobtrcks.com/go/b4571134-6391-4687-953b-61b8360e25a6"
                 })
             });
 
