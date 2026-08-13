@@ -158,12 +158,22 @@ window.addEventListener('DOMContentLoaded', () => {
     if (qs.get('sub4')) lastName.value = d(qs.get('sub4'));
     if (qs.get('sub9')) emailInput.value = d(qs.get('sub9'));
 
+    const validateEmail = (email) => {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    };
+
     nextBtn.onclick = async () => {
         err.setAttribute("aria-hidden", "true");
         nameInput.value = `${firstName.value} ${lastName.value}`.trim();
 
         if (!firstName.value.trim() || !lastName.value.trim() || !emailInput.value.trim()) {
             err.textContent = "Por favor, completa todos los campos requeridos.";
+            err.setAttribute("aria-hidden", "false");
+            return;
+        }
+
+        if (!validateEmail(emailInput.value.trim())) {
+            err.textContent = "Por favor, ingresa un correo electrónico válido.";
             err.setAttribute("aria-hidden", "false");
             return;
         }
@@ -220,14 +230,16 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     // -------------------------------------------------------------
-    // AUTO-SKIP CHECK: Checks ref, sub3 (firstName), sub4 (lastName), sub9 (email)
+    // STRICT AUTO-SKIP CHECK
+    // Only skips if ref, sub3, sub4, and a VALID email in sub9 exist.
     // -------------------------------------------------------------
+    const rawEmail = d(qs.get('sub9') || '').trim();
     const hasRef = Boolean(affiliateRef);
-    const hasFirstName = Boolean(qs.get('sub3'));
-    const hasLastName = Boolean(qs.get('sub4'));
-    const hasEmail = Boolean(qs.get('sub9'));
+    const hasFirstName = Boolean(d(qs.get('sub3') || '').trim());
+    const hasLastName = Boolean(d(qs.get('sub4') || '').trim());
+    const hasValidEmail = validateEmail(rawEmail);
 
-    if (hasRef && hasFirstName && hasLastName && hasEmail) {
+    if (hasRef && hasFirstName && hasLastName && hasValidEmail) {
         nextBtn.click();
     }
 });
