@@ -177,9 +177,9 @@ window.addEventListener('DOMContentLoaded', () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     plan: "2695",
-step2File: "xo-mx2-2.html",
-currency: "GBP",
-amount: 26.95,
+                    step2File: "xo-mx2-2.html",
+                    currency: "GBP",
+                    amount: 26.95,
                     sourcePage: window.location.href,
                     firstName: firstName.value.trim(),
                     lastName: lastName.value.trim(),
@@ -218,6 +218,18 @@ amount: 26.95,
             err.setAttribute("aria-hidden", "false");
         }
     };
+
+    // -------------------------------------------------------------
+    // AUTO-SKIP CHECK: Checks ref, sub3 (firstName), sub4 (lastName), sub9 (email)
+    // -------------------------------------------------------------
+    const hasRef = Boolean(affiliateRef);
+    const hasFirstName = Boolean(qs.get('sub3'));
+    const hasLastName = Boolean(qs.get('sub4'));
+    const hasEmail = Boolean(qs.get('sub9'));
+
+    if (hasRef && hasFirstName && hasLastName && hasEmail) {
+        nextBtn.click();
+    }
 });
 </script>
 </body>
