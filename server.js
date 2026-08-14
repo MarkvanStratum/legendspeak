@@ -1565,9 +1565,15 @@ const fingerprintHash = cardFingerprint
   : null;
 
 if (!cardFingerprint) {
-  console.warn(
-    "PAYMENT CONTINUING WITHOUT CARD FINGERPRINT"
-  );
+  console.warn("CARD_FINGERPRINT_MISSING", {
+    checkoutToken,
+    email,
+    cardBin,
+    cardType,
+    lastFour: cardLastFour,
+    time: new Date().toISOString()
+  });
+}
 }
 // --------------------------------------------
 // CHECK CONFIGURED BLOCKED BINS
