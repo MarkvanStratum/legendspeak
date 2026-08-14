@@ -1580,7 +1580,6 @@ if (!cardFingerprint) {
 // --------------------------------------------
 
 const blockedCardBins =
-const blockedCardBins =
   String(process.env.BLOCKED_CARD_BINS || "")
     .split(",")
     .map(bin => bin.trim().replace(/\D/g, ""))
