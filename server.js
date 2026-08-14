@@ -1669,7 +1669,8 @@ const failedAttemptsResult = await pool.query(
   SELECT COUNT(*)::int AS failed_count
   FROM card_payment_attempts
   WHERE fingerprint_hash = $1
-    AND status = 'FAILED'
+  AND status = 'FAILED'
+  AND created_at >= NOW() - INTERVAL '24 hours'
   `,
   [fingerprintHash]
 );
@@ -2647,6 +2648,35 @@ app.get("/xolvis-webhook", (req, res) => {
   res.send("Xolvis webhook endpoint is reachable");
 });
 
+function isRetryExcludedPayment(data) {
+  const combinedText = JSON.stringify(data || {}).toUpperCase();
+
+  return (
+    combinedText.includes("3D SECURE") ||
+    combinedText.includes("3DS") ||
+    combinedText.includes("USER AUTHENTICATION FAILED") ||
+    combinedText.includes("AUTHENTICATION FAILED") ||
+    combinedText.includes("AUTHENTICATION PENDING") ||
+    combinedText.includes("CHALLENGE PENDING") ||
+    combinedText.includes("CHALLENGE CANCELLED") ||
+    combinedText.includes("CHALLENGE CANCELED") ||
+    combinedText.includes("AUTHENTICATION CANCELLED") ||
+    combinedText.includes("AUTHENTICATION CANCELED") ||
+    combinedText.includes(
+      "NOT AUTHENTICATED BECAUSE THE ISSUER IS REJECTING AUTHENTICATION"
+    ) ||
+    combinedText.includes(
+      "TRANSACTION REJECTED BECAUSE CARDHOLDER AUTHENTICATION UNAVAILABLE"
+    ) ||
+    combinedText.includes("CARDHOLDER CANCELLED") ||
+    combinedText.includes("CARDHOLDER CANCELED") ||
+    combinedText.includes("CANCELLED BY USER") ||
+    combinedText.includes("CANCELED BY USER") ||
+    combinedText.includes("USER CANCELLED") ||
+    combinedText.includes("USER CANCELED")
+  );
+}
+
 app.post("/xolvis-webhook", async (req, res) => {
   try {
     const data = req.body;
@@ -2683,6 +2713,10 @@ const isSuccessful =
   String(data?.status || "").toUpperCase() === "SUCCESS" ||
   String(data?.transaction?.status || "").toUpperCase() === "FINISHED" ||
   String(data?.transaction?.status || "").toUpperCase() === "SUCCESS";
+
+const isRetryExcluded =
+  !isSuccessful &&
+  isRetryExcludedPayment(data);
 
     if (!reference && !uuid) {
       console.error("XOLVIS WEBHOOK: Missing reference/uuid");
@@ -2752,7 +2786,11 @@ await pool.query(
   WHERE payment_reference = $3
   `,
   [
-    isSuccessful ? "SUCCESSFUL" : "FAILED",
+    isSuccessful
+  ? "SUCCESSFUL"
+  : isRetryExcluded
+    ? "EXCLUDED"
+    : "FAILED",
     status,
     payment.reference
   ]
