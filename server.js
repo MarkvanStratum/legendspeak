@@ -1574,11 +1574,12 @@ if (!cardFingerprint) {
     time: new Date().toISOString()
   });
 }
-}
+
 // --------------------------------------------
 // CHECK CONFIGURED BLOCKED BINS
 // --------------------------------------------
 
+const blockedCardBins =
 const blockedCardBins =
   String(process.env.BLOCKED_CARD_BINS || "")
     .split(",")
