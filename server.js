@@ -1689,7 +1689,7 @@ if (fingerprintHash) {
     failedAttemptsResult.rows[0]?.failed_count || 0;
 }
 
-if (fingerprintHash && failedAttemptCount >= 2) {
+if (fingerprintHash && failedAttemptCount >= 4) {
   console.warn("PAYMENT BLOCKED BY RETRY LIMIT:", {
     bin: cardBin,
     cardType,
