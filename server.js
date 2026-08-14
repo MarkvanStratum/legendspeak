@@ -1557,19 +1557,18 @@ const reference = `promo-${selectedPlan}-${Date.now()}`;
 // RECORD CARD PAYMENT ATTEMPT
 // --------------------------------------------
 
+const fingerprintHash = cardFingerprint
+  ? crypto
+      .createHmac("sha256", SECRET_KEY)
+      .update(cardFingerprint)
+      .digest("hex")
+  : null;
+
 if (!cardFingerprint) {
-  return res.status(400).json({
-    success: false,
-    error: "Card identification data is missing. Please try again.",
-    code: "CARD_FINGERPRINT_MISSING"
-  });
+  console.warn(
+    "PAYMENT CONTINUING WITHOUT CARD FINGERPRINT"
+  );
 }
-
-const fingerprintHash = crypto
-  .createHmac("sha256", SECRET_KEY)
-  .update(cardFingerprint)
-  .digest("hex");
-
 // --------------------------------------------
 // CHECK CONFIGURED BLOCKED BINS
 // --------------------------------------------
@@ -1626,6 +1625,7 @@ if (isBlockedBin) {
     ]
   );
 
+  if (fingerprintHash) {
   await pool.query(
     `
     INSERT INTO card_payment_attempts
@@ -1651,6 +1651,7 @@ if (isBlockedBin) {
       email
     ]
   );
+}
 
   return res.status(400).json({
     success: false,
@@ -1664,21 +1665,25 @@ if (isBlockedBin) {
 // BLOCK CARD AFTER TWO FAILED PAYMENTS
 // --------------------------------------------
 
-const failedAttemptsResult = await pool.query(
-  `
-  SELECT COUNT(*)::int AS failed_count
-  FROM card_payment_attempts
-  WHERE fingerprint_hash = $1
-  AND status = 'FAILED'
-  AND created_at >= NOW() - INTERVAL '24 hours'
-  `,
-  [fingerprintHash]
-);
+let failedAttemptCount = 0;
 
-const failedAttemptCount =
-  failedAttemptsResult.rows[0]?.failed_count || 0;
+if (fingerprintHash) {
+  const failedAttemptsResult = await pool.query(
+    `
+    SELECT COUNT(*)::int AS failed_count
+    FROM card_payment_attempts
+    WHERE fingerprint_hash = $1
+      AND status = 'FAILED'
+      AND created_at >= NOW() - INTERVAL '24 hours'
+    `,
+    [fingerprintHash]
+  );
 
-if (failedAttemptCount >= 2) {
+  failedAttemptCount =
+    failedAttemptsResult.rows[0]?.failed_count || 0;
+}
+
+if (fingerprintHash && failedAttemptCount >= 2) {
   console.warn("PAYMENT BLOCKED BY RETRY LIMIT:", {
     bin: cardBin,
     cardType,
@@ -1755,30 +1760,31 @@ if (failedAttemptCount >= 2) {
   });
 }
 
-await pool.query(
-  `
-  INSERT INTO card_payment_attempts
-  (
-    payment_reference,
-    fingerprint_hash,
-    card_bin,
-    card_type,
-    last_four,
-    email,
-    status
-  )
-  VALUES ($1, $2, $3, $4, $5, $6, 'CREATED')
-  `,
-  [
-    reference,
-    fingerprintHash,
-    cardBin || null,
-    cardType || null,
-    cardLastFour || null,
-    email
-  ]
-);
-
+if (fingerprintHash) {
+  await pool.query(
+    `
+    INSERT INTO card_payment_attempts
+    (
+      payment_reference,
+      fingerprint_hash,
+      card_bin,
+      card_type,
+      last_four,
+      email,
+      status
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, 'CREATED')
+    `,
+    [
+      reference,
+      fingerprintHash,
+      cardBin || null,
+      cardType || null,
+      cardLastFour || null,
+      email
+    ]
+  );
+}
 await pool.query(
   `
   INSERT INTO xolvis_payments
