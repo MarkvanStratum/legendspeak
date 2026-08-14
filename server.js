@@ -621,31 +621,6 @@ await pool.query(`
   ADD COLUMN IF NOT EXISTS affiliate_source TEXT;
 `);
 
-await pool.query(`
-  ALTER TABLE xolvis_payments
-  ADD COLUMN IF NOT EXISTS sub_id TEXT;
-`);
-
-await pool.query(`
-  ALTER TABLE xolvis_payments
-  ADD COLUMN IF NOT EXISTS traffic_source TEXT;
-`);
-
-await pool.query(`
-  ALTER TABLE xolvis_payments
-  ADD COLUMN IF NOT EXISTS card_bin TEXT;
-`);
-
-await pool.query(`
-  ALTER TABLE xolvis_payments
-  ADD COLUMN IF NOT EXISTS card_type TEXT;
-`);
-
-await pool.query(`
-  ALTER TABLE xolvis_payments
-  ADD COLUMN IF NOT EXISTS last_four TEXT;
-`);
-
 console.log("✅ Xolvis payments table ready");
 
 // --------------------------------------------
@@ -1474,20 +1449,12 @@ const originalParams =
   new URLSearchParams(checkout.original_query_string || "");
 
 const affiliateSource =
-  originalParams.get("ref") ||
-  checkout.affiliate_ref ||
   originalParams.get("affiliate_source") ||
   affiliate_source ||
   "";
 
-const trafficSource =
-  originalParams.get("source") || "";
-
 const binomClickid =
   originalParams.get("clickid") || clickid || "";
-
-const subId =
-  originalParams.get("sub_id") || "";
 
 const email = checkout.email;
     const selectedPlan = checkout.plan || "3795";
@@ -1603,7 +1570,7 @@ if (isBlockedBin) {
     lastFour: cardLastFour
   });
 
-    await pool.query(
+  await pool.query(
     `
     INSERT INTO xolvis_payments
     (
@@ -1615,14 +1582,9 @@ if (isBlockedBin) {
       xolvis_payload,
       user_id,
       binom_clickid,
-      affiliate_source,
-      traffic_source,
-      sub_id,
-      card_bin,
-      card_type,
-      last_four
+      affiliate_source
     )
-    VALUES ($1, $2, $3, $4, 'BLOCKED', $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    VALUES ($1, $2, $3, $4, 'BLOCKED', $5, $6, $7, $8)
     ON CONFLICT (reference) DO NOTHING
     `,
     [
@@ -1633,19 +1595,13 @@ if (isBlockedBin) {
       {
         result: "BLOCKED",
         message: "CARD_BIN_BLOCKED",
-        binCountry: cardCountry || null,
         cardType: cardType || null,
         cardBin: cardBin || null,
         lastFour: cardLastFour || null
       },
       checkout.user_id || null,
       binomClickid || null,
-      affiliateSource || null,
-      trafficSource || null,
-      subId || null,
-      cardBin || null,
-      cardType || null,
-      cardLastFour || null
+      affiliateSource || null
     ]
   );
 
@@ -1669,14 +1625,9 @@ await pool.query(
     amount,
     user_id,
     binom_clickid,
-    affiliate_source,
-    traffic_source,
-    sub_id,
-    card_bin,
-    card_type,
-    last_four
+    affiliate_source
   )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
   ON CONFLICT (reference) DO NOTHING
   `,
   [
@@ -1686,12 +1637,7 @@ await pool.query(
     amount,
     checkout.user_id || null,
     binomClickid || null,
-    affiliateSource || null,
-    trafficSource || null,
-    subId || null,
-    cardBin || null,
-    cardType || null,
-    cardLastFour || null
+    affiliateSource || null
   ]
 );
 
@@ -2269,15 +2215,13 @@ app.get(
       a.created_at
     ) AS created_at,
 
-        p.paid_at,
+    p.paid_at,
     p.xolvis_uuid,
     p.affiliate_source,
-    p.traffic_source,
-    p.sub_id,
 
-    COALESCE(p.card_bin, a.card_bin) AS card_bin,
-    COALESCE(p.card_type, a.card_type) AS card_type,
-    COALESCE(p.last_four, a.last_four) AS last_four,
+    a.card_bin,
+    a.card_type,
+    a.last_four,
     a.status AS attempt_status,
     a.gateway_status,
 
