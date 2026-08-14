@@ -1410,10 +1410,6 @@ const cardBin =
     .replace(/\D/g, "")
     .slice(0, 8);
 
-const cardFingerprint =
-  typeof cardData?.fingerprint === "string"
-    ? cardData.fingerprint.trim()
-    : "";
 
 const cardType =
   typeof cardData?.card_type === "string"
@@ -1428,8 +1424,7 @@ const cardLastFour =
 console.log("SAFE CARD METADATA:", {
   bin: cardBin,
   cardType,
-  lastFour: cardLastFour,
-  hasFingerprint: Boolean(cardFingerprint)
+  lastFour: cardLastFour
 });
 
 
@@ -1553,27 +1548,6 @@ try {
 
 const reference = `promo-${selectedPlan}-${Date.now()}`;
 
-// --------------------------------------------
-// RECORD CARD PAYMENT ATTEMPT
-// --------------------------------------------
-
-const fingerprintHash = cardFingerprint
-  ? crypto
-      .createHmac("sha256", SECRET_KEY)
-      .update(cardFingerprint)
-      .digest("hex")
-  : null;
-
-if (!cardFingerprint) {
-  console.warn("CARD_FINGERPRINT_MISSING", {
-    checkoutToken,
-    email,
-    cardBin,
-    cardType,
-    lastFour: cardLastFour,
-    time: new Date().toISOString()
-  });
-}
 
 // --------------------------------------------
 // CHECK CONFIGURED BLOCKED BINS
@@ -1631,33 +1605,6 @@ if (isBlockedBin) {
     ]
   );
 
-  if (fingerprintHash) {
-  await pool.query(
-    `
-    INSERT INTO card_payment_attempts
-    (
-      payment_reference,
-      fingerprint_hash,
-      card_bin,
-      card_type,
-      last_four,
-      email,
-      status,
-      gateway_status
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, 'BLOCKED', 'CARD_BIN_BLOCKED')
-    ON CONFLICT (payment_reference) DO NOTHING
-    `,
-    [
-      reference,
-      fingerprintHash,
-      cardBin || null,
-      cardType || null,
-      cardLastFour || null,
-      email
-    ]
-  );
-}
 
   return res.status(400).json({
     success: false,
@@ -1667,130 +1614,7 @@ if (isBlockedBin) {
   });
 }
 
-// --------------------------------------------
-// BLOCK CARD AFTER TWO FAILED PAYMENTS
-// --------------------------------------------
 
-let failedAttemptCount = 0;
-
-if (fingerprintHash) {
-  const failedAttemptsResult = await pool.query(
-    `
-    SELECT COUNT(*)::int AS failed_count
-    FROM card_payment_attempts
-    WHERE fingerprint_hash = $1
-      AND status = 'FAILED'
-      AND created_at >= NOW() - INTERVAL '24 hours'
-    `,
-    [fingerprintHash]
-  );
-
-  failedAttemptCount =
-    failedAttemptsResult.rows[0]?.failed_count || 0;
-}
-
-if (fingerprintHash && failedAttemptCount >= 4) {
-  console.warn("PAYMENT BLOCKED BY RETRY LIMIT:", {
-    bin: cardBin,
-    cardType,
-    lastFour: cardLastFour,
-    failedAttemptCount
-  });
-
-  await pool.query(
-    `
-    INSERT INTO xolvis_payments
-    (
-      reference,
-      email,
-      plan,
-      amount,
-      status,
-      xolvis_payload,
-      user_id,
-      binom_clickid,
-      affiliate_source
-    )
-    VALUES ($1, $2, $3, $4, 'BLOCKED', $5, $6, $7, $8)
-    ON CONFLICT (reference) DO NOTHING
-    `,
-    [
-      reference,
-      email,
-      selectedPlan,
-      amount,
-      {
-        result: "BLOCKED",
-        message: "CARD_RETRY_LIMIT_REACHED",
-        cardType: cardType || null,
-        cardBin: cardBin || null,
-        lastFour: cardLastFour || null
-      },
-      checkout.user_id || null,
-      binomClickid || null,
-      affiliateSource || null
-    ]
-  );
-
-  await pool.query(
-    `
-    INSERT INTO card_payment_attempts
-    (
-      payment_reference,
-      fingerprint_hash,
-      card_bin,
-      card_type,
-      last_four,
-      email,
-      status,
-      gateway_status
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, 'BLOCKED', 'CARD_RETRY_LIMIT_REACHED')
-    ON CONFLICT (payment_reference) DO NOTHING
-    `,
-    [
-      reference,
-      fingerprintHash,
-      cardBin || null,
-      cardType || null,
-      cardLastFour || null,
-      email
-    ]
-  );
-
-  return res.status(429).json({
-    success: false,
-    error:
-      "The maximum number of payment attempts has been reached. Please use another card.",
-    code: "CARD_RETRY_LIMIT_REACHED"
-  });
-}
-
-if (fingerprintHash) {
-  await pool.query(
-    `
-    INSERT INTO card_payment_attempts
-    (
-      payment_reference,
-      fingerprint_hash,
-      card_bin,
-      card_type,
-      last_four,
-      email,
-      status
-    )
-    VALUES ($1, $2, $3, $4, $5, $6, 'CREATED')
-    `,
-    [
-      reference,
-      fingerprintHash,
-      cardBin || null,
-      cardType || null,
-      cardLastFour || null,
-      email
-    ]
-  );
-}
 await pool.query(
   `
   INSERT INTO xolvis_payments
