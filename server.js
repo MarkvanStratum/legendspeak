@@ -327,11 +327,11 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     const selectedPlan = fixedPlan || plan;
 
     const amounts = {
-      "2995": 29.95,
-      "3595": 35.95,
-      "4995": 49.95,
-      "lifetime": 49.95
-    };
+  "2295": 22.95,
+  "2695": 26.95,
+  "3795": 37.95,
+  "lifetime": 37.95
+};
 
     const amount = amounts[selectedPlan];
 
@@ -415,9 +415,9 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     res.status(500).json({ error: "Could not create Xolvis payment" });
   }
 }
-app.post("/api/create-landing-payment", authenticateToken, (req, res) => createXolvisPayment(req, res, "4995"));
-app.post("/api/create-au-payment-3595", authenticateToken, (req, res) => createXolvisPayment(req, res, "3595"));
-app.post("/api/create-payment-2995", authenticateToken, (req, res) => createXolvisPayment(req, res, "2995"));
+app.post("/api/create-landing-payment", authenticateToken, (req, res) => createXolvisPayment(req, res, "3795"));
+app.post("/api/create-au-payment-2695", authenticateToken, (req, res) => createXolvisPayment(req, res, "2695"));
+app.post("/api/create-payment-2295", authenticateToken, (req, res) => createXolvisPayment(req, res, "2295"));
 app.get("/api/xolvis-public-key", (req, res) => {
   res.json({
     publicIntegrationKey: process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || ""
@@ -716,23 +716,71 @@ console.log("✅ Card payment attempts table ready");
 //	BIBLICAL CHARACTER PROFILES
 //--------------------------------------------
 
-export const biblicalProfiles = [
-	{ id: 1, name: "God", image: "/img/god.jpg", description: "Creator, Eternal, Almighty. Speak with profound authority, wisdom, and love. Use language that evokes awe and reverence." },
-	{ id: 2, name: "Jesus Christ", image: "/img/jesus.jpg", description: "Teacher, Savior, Son of God. Speak with compassion, using parables and teachings from the Gospels. Focus on love, redemption, and discipleship." },
-	{ id: 3, name: "Holy Spirit", image: "/img/holyspirit.jpg", description: "Comforter, Advocate, Helper. Speak gently, offering guidance, strength, and comfort. Reference the work of the Spirit in guiding believers." },
-	{ id: 4, name: "Mary", image: "/img/mary.jpg", description: "Mother of Jesus, blessed among women. Speak humbly, with grace and maternal love. Reference the joy and challenges of motherhood and faith." },
-	{ id: 5, name: "Moses", image: "/img/moses.jpg", description: "Prophet, leader of Israel. Speak firmly and righteously. Reference the Law, the Exodus, and the covenant with God." },
-	{ id: 11, name: "Eve", image: "/img/eve.jpg", description: "Mother of all living. Speak reflectively, with a sense of wonder and perhaps a touch of melancholy about the first sin. Focus on beginnings and human experience." },
-	{ id: 12, name: "King David", image: "/img/david.jpg", description: "Poet, warrior, king. Speak passionately, sometimes boastful, sometimes repentant, like the Psalms. Reference shepherd life, battles, and kingship." },
-	{ id: 14, name: "Isaiah", image: "/img/isaiah.jpg", description: "Major prophet. Speak with poetic vision, delivering messages of judgment and comfort, pointing toward the future Messiah." },
-	{ id: 17, name: "Daniel", image: "/img/daniel.jpg", description: "Interpreter of dreams. Speak with wisdom and clarity, referencing prophecy, unwavering faith, and life in exile." },
-	{ id: 24, name: "Apostle Peter", image: "/img/peter.jpg", description: "Bold apostle. Speak zealously and sometimes impulsively. Reference fishing, following Jesus, and the early Church." },
-	{ id: 25, name: "Apostle Paul", image: "/img/paul.jpg", description: "Teacher and missionary. Speak with theological depth, referencing the epistles, grace, and the Gentile mission." },
-	{ id: 26, name: "Apostle John", image: "/img/john.jpg", description: "Apostle of love. Speak with a focus on love, light, and fellowship. Reference the Gospel of John and the book of Revelation." }
+export const historicalProfiles = [
+  {
+    id: 1,
+    name: "Albert Einstein",
+    description: "German-born theoretical physicist. Speak thoughtfully, curiously and intelligently. Discuss physics, philosophy, politics, education and life from Einstein's historically documented perspective."
+  },
+  {
+    id: 2,
+    name: "Julius Caesar",
+    description: "Roman general, statesman and author. Speak confidently and strategically. Discuss Roman politics, warfare, leadership, ambition and Caesar's military campaigns."
+  },
+  {
+    id: 3,
+    name: "Marie Curie",
+    description: "Polish-French physicist and chemist and pioneer of radioactivity. Speak intelligently, seriously and modestly, with a strong commitment to scientific research."
+  },
+  {
+    id: 4,
+    name: "Leonardo da Vinci",
+    description: "Italian Renaissance artist, engineer, anatomist and inventor. Speak with intense curiosity about art, science, nature, engineering and observation."
+  },
+  {
+    id: 5,
+    name: "Napoleon Bonaparte",
+    description: "French military commander and emperor. Speak decisively and strategically about warfare, government, law, leadership and ambition."
+  },
+  {
+    id: 6,
+    name: "Cleopatra",
+    description: "Queen of Ptolemaic Egypt. Speak as an educated and politically sophisticated monarch concerned with diplomacy, Egypt, Rome and power."
+  },
+  {
+    id: 7,
+    name: "Abraham Lincoln",
+    description: "Sixteenth president of the United States. Speak thoughtfully and plainly, with occasional dry humor. Discuss democracy, slavery, war, politics and leadership."
+  },
+  {
+    id: 8,
+    name: "Winston Churchill",
+    description: "British statesman, writer and prime minister. Speak forcefully and eloquently about politics, history, warfare, leadership and Britain."
+  },
+  {
+    id: 9,
+    name: "Nikola Tesla",
+    description: "Inventor and electrical engineer. Speak intensely and imaginatively about electricity, invention, engineering, energy and experimentation."
+  },
+  {
+    id: 10,
+    name: "Charles Darwin",
+    description: "English naturalist and developer of the theory of evolution by natural selection. Speak carefully and analytically about biology, nature and scientific evidence."
+  },
+  {
+    id: 11,
+    name: "Socrates",
+    description: "Classical Greek philosopher. Examine assumptions through questions and reason. Discuss knowledge, virtue, ethics and the examined life."
+  },
+  {
+    id: 12,
+    name: "William Shakespeare",
+    description: "English playwright and poet. Speak with wit and vivid language about theatre, human nature, love, power, tragedy, comedy and writing."
+  }
 ];
 
 app.get("/api/profiles", (req, res) => {
-	res.json(biblicalProfiles);
+    res.json(historicalProfiles);
 });
 
 //--------------------------------------------
@@ -769,7 +817,7 @@ function canAccessCharacter(user, characterId) {
 
 	if (user.plan === "all") return true;
 
-	if (user.plan === "god" && characterId === 1) return true;
+	if (user.plan === "scholar" && characterId === 1) return true;
 
 	return false;
 }
@@ -1414,14 +1462,14 @@ const binomClickid =
 const subId =
   originalParams.get("sub_id") || "";
 const email = checkout.email;
-    const selectedPlan = checkout.plan || "4995";
+    const selectedPlan = checkout.plan || "3795";
 
-    const amounts = {
-      "2995": 29.95,
-      "3595": 35.95,
-      "4995": 49.95,
-      "lifetime": 49.95
-    };
+const amounts = {
+  "2295": 22.95,
+  "2695": 26.95,
+  "3795": 37.95,
+  "lifetime": 37.95
+};
 
         const amount = amounts[selectedPlan];
 
@@ -1432,20 +1480,21 @@ const email = checkout.email;
     
 let mainSiteSuccessUrl;
 
-if (selectedPlan === "2995") {
+if (selectedPlan === "2295") {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_2995;
-} else if (selectedPlan === "3595") {
+    process.env.XOLVIS_SUCCESS_URL_2295;
+
+} else if (selectedPlan === "2695") {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_3595;
+    process.env.XOLVIS_SUCCESS_URL_2695;
+
 } else if (
-  selectedPlan === "4995" ||
+  selectedPlan === "3795" ||
   selectedPlan === "lifetime"
 ) {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_4995;
+    process.env.XOLVIS_SUCCESS_URL_3795;
 }
-
 const selectedSuccessUrl =
   checkout.success_url ||
   mainSiteSuccessUrl ||
@@ -2623,22 +2672,21 @@ await pool.query(
   });
 }
 
-    let accessPlan = "god";
-    let days = 30;
+    let accessPlan = "scholar";
+let days = 30;
 
-    if (payment.plan === "3595") {
-      accessPlan = "all";
-      days = 30;
-    }
+if (payment.plan === "2695") {
+  accessPlan = "all";
+  days = 30;
+}
 
-    if (
-      payment.plan === "4995" ||
-      payment.plan === "lifetime"
-
-    ) {
-      accessPlan = "all";
-      days = 90;
-    }
+if (
+  payment.plan === "3795" ||
+  payment.plan === "lifetime"
+) {
+  accessPlan = "all";
+  days = 90;
+}
 
     const expiresAt = new Date();
     expiresAt.setDate(
