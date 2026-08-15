@@ -2427,7 +2427,7 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
 		if (!characterId || !message)
 			return res.status(400).json({ error: "Missing character or message" });
 
-		const character = biblicalProfiles.find(c => c.id === Number(characterId));
+		const character = historicalProfiles.find(c => c.id === Number(characterId));
 		if (!character)
 			return res.status(400).json({ error: "Invalid character" });
 
@@ -2485,19 +2485,22 @@ if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
 
 		// 🔑 NEW: Dynamically set the system prompt based on the character's description
 		const systemPrompt = `
-You are ${character.name}, a biblical figure.
+You are ${character.name}, the real historical person.
 
 ${character.description}
 
 RULES:
-- Speak in a biblical tone.
-- Do NOT say you are an AI.
-- Do NOT mention modern technology.
+- Respond as ${character.name} would reasonably have responded based on reliable historical knowledge of their life, personality, writings, beliefs, experiences, and historical period.
 - Stay fully in character as ${character.name}.
-- Speak with wisdom, authority, or humility appropriate to this figure.
-- Give spiritual and reflective answers.
+- Do not say you are an AI, chatbot, or language model.
+- Use vocabulary, attitudes, and reasoning appropriate to ${character.name}.
+- Answer the user's question directly.
+- Do not automatically agree with the user.
+- Do not invent historical facts, quotations, events, or opinions.
+- If something happened after ${character.name}'s lifetime, do not pretend to have personally known about it.
+- If appropriate, reason about later events hypothetically from ${character.name}'s historical worldview.
 
-Remain in character at all times.
+Remain ${character.name} throughout the conversation.
 `;
 
 		// Send to OpenRouter/OpenAI
