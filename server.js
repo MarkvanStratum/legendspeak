@@ -612,6 +612,7 @@ await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS card_bin TEXT;
 `);
+
 await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS card_type TEXT;
@@ -620,6 +621,11 @@ await pool.query(`
 await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS last_four TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS final_redirect_url TEXT;
 `);
 
 console.log("✅ Xolvis payments table ready");
@@ -1714,6 +1720,10 @@ if (isBlockedBin) {
   });
 }
 
+const paymentResultUrl =
+  "https://www.legendspeak.net/payment-result?reference=" +
+  encodeURIComponent(reference);
+
 await pool.query(
   `
   INSERT INTO xolvis_payments
@@ -1729,9 +1739,10 @@ await pool.query(
     sub_id,
     card_bin,
     card_type,
-    last_four
+    last_four,
+    final_redirect_url
   )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
   ON CONFLICT (reference) DO NOTHING
   `,
   [
@@ -1746,9 +1757,12 @@ await pool.query(
     subId || null,
     cardBin || null,
     cardType || null,
-    cardLastFour || null
+    cardLastFour || null,
+    finalSuccessUrl
   ]
-);const trackingCallbackUrl =
+);
+
+const trackingCallbackUrl =
   process.env.XOLVIS_CALLBACK_URL;
 
 if (!trackingCallbackUrl) {
@@ -1758,71 +1772,83 @@ if (!trackingCallbackUrl) {
 }
 
     const response = await fetch(
-      `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: getXolvisAuthHeader(),
-          "Content-Type": "application/json; charset=utf-8",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({
-          merchantTransactionId: reference,
-          transactionToken: transactionToken,
-          amount: amount.toFixed(2),
-          currency: "GBP",
-          description: "Legend Speak Access",
-          successUrl: finalSuccessUrl,
-          cancelUrl: process.env.XOLVIS_CANCEL_URL,
-          errorUrl: process.env.XOLVIS_ERROR_URL,
-          callbackUrl: trackingCallbackUrl,
-          customer: {
-            email: email,
-            firstName: checkout.first_name || "",
-            lastName: checkout.last_name || "",
-            ipAddress: req.ip || "127.0.0.1"
-          },
-          language: "en"
-        })
-      }
-    );
+  `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: getXolvisAuthHeader(),
+      "Content-Type": "application/json; charset=utf-8",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      merchantTransactionId: reference,
+      transactionToken: transactionToken,
+      amount: amount.toFixed(2),
+      currency: "GBP",
+      description: "Legend Speak Access",
 
-    const rawText = await response.text();
+      successUrl: paymentResultUrl,
+      cancelUrl: paymentResultUrl,
+      errorUrl: paymentResultUrl,
 
-    console.log("PROMO XOLVIS STATUS:", response.status);
-    console.log("PROMO XOLVIS RAW RESPONSE:", rawText);
+      callbackUrl: trackingCallbackUrl,
+      customer: {
+        email: email,
+        firstName: checkout.first_name || "",
+        lastName: checkout.last_name || "",
+        ipAddress: req.ip || "127.0.0.1"
+      },
+      language: "en"
+    })
+  }
+);
 
-    let data = {};
-    try {
-      data = rawText ? JSON.parse(rawText) : {};
-    } catch {
-      data = { raw: rawText };
-    }
+const rawText = await response.text();
 
-    await pool.query(
-      `
-      UPDATE xolvis_payments
-      SET xolvis_payload = $1,
-          xolvis_uuid = $2,
-          status = $3
-      WHERE reference = $4
-      `,
-      [data, data.uuid || null, data.returnType || "created", reference]
-    );
+console.log("PROMO XOLVIS STATUS:", response.status);
+console.log("PROMO XOLVIS RAW RESPONSE:", rawText);
 
-    if (!response.ok || data.success === false || data.returnType === "ERROR") {
-      return res.status(500).json({
-        error: "Xolvis error",
-        details: data
-      });
-    }
+let data = {};
 
-    res.json({
+try {
+  data = rawText ? JSON.parse(rawText) : {};
+} catch {
+  data = { raw: rawText };
+}
+
+await pool.query(
+  `
+  UPDATE xolvis_payments
+  SET xolvis_payload = $1,
+      xolvis_uuid = $2,
+      status = $3
+  WHERE reference = $4
+  `,
+  [
+    data,
+    data.uuid || null,
+    data.returnType || "created",
+    reference
+  ]
+);
+
+if (
+  !response.ok ||
+  data.success === false ||
+  data.returnType === "ERROR"
+) {
+  return res.status(500).json({
+    error: "Xolvis error",
+    details: data
+  });
+}
+
+res.json({
   ...data,
   amount: amount.toFixed(2),
   currency: "GBP",
   plan: selectedPlan,
-  successUrl: finalSuccessUrl
+  paymentResultUrl: paymentResultUrl
 });
 
   } catch (err) {
@@ -2559,6 +2585,211 @@ app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
 		console.error("Fetch messages error:", err);
 		res.status(500).json({ error: "Server error" });
 	}
+});
+
+// --------------------------------------------
+// PAYMENT RESULT STATUS CHECK
+// --------------------------------------------
+
+app.get("/api/payment-result-status", async (req, res) => {
+  try {
+    const reference =
+      String(req.query.reference || "").trim();
+
+    if (!reference) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing payment reference"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        reference,
+        status,
+        paid_at,
+        final_redirect_url
+      FROM xolvis_payments
+      WHERE reference = $1
+      LIMIT 1
+      `,
+      [reference]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: "Payment not found"
+      });
+    }
+
+    const payment = result.rows[0];
+
+    if (
+      payment.paid_at &&
+      payment.final_redirect_url
+    ) {
+      return res.json({
+        ok: true,
+        successful: true,
+        status: payment.status,
+        redirectUrl: payment.final_redirect_url
+      });
+    }
+
+    return res.json({
+      ok: true,
+      successful: false,
+      status: payment.status || "UNKNOWN"
+    });
+
+  } catch (err) {
+    console.error(
+      "PAYMENT RESULT STATUS ERROR:",
+      err
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error: "Could not check payment status"
+    });
+  }
+});
+
+
+// --------------------------------------------
+// PAYMENT RESULT PAGE
+// --------------------------------------------
+
+app.get("/payment-result", (req, res) => {
+  const reference =
+    String(req.query.reference || "").trim();
+
+  if (!reference) {
+    return res.status(400).send(
+      "Invalid payment reference."
+    );
+  }
+
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Checking Payment</title>
+</head>
+
+<body style="
+  font-family: Arial, sans-serif;
+  text-align: center;
+  padding: 80px 20px;
+">
+
+  <h2 id="title">
+    Checking your payment...
+  </h2>
+
+  <p id="message">
+    Please wait while we confirm your transaction.
+  </p>
+
+  <script>
+    const reference =
+      ${JSON.stringify(reference)};
+
+    let attempts = 0;
+
+    const maxAttempts = 30;
+
+    async function checkPayment() {
+      attempts++;
+
+      try {
+        const response = await fetch(
+          "/api/payment-result-status?reference=" +
+          encodeURIComponent(reference),
+          {
+            cache: "no-store"
+          }
+        );
+
+        const data = await response.json();
+
+        if (
+          data.ok === true &&
+          data.successful === true &&
+          data.redirectUrl
+        ) {
+          window.location.replace(
+            data.redirectUrl
+          );
+
+          return;
+        }
+
+        const status =
+          String(data.status || "")
+            .toUpperCase();
+
+        if (
+          status === "ERROR" ||
+          status === "FAILED" ||
+          status === "DECLINED" ||
+          status === "CANCELLED" ||
+          status === "BLOCKED"
+        ) {
+          document.getElementById(
+            "title"
+          ).textContent =
+            "Payment not completed";
+
+          document.getElementById(
+            "message"
+          ).textContent =
+            "Your payment was not completed. Please return and try again.";
+
+          return;
+        }
+
+      } catch (error) {
+        console.error(
+          "Payment check failed:",
+          error
+        );
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(
+          checkPayment,
+          2000
+        );
+
+        return;
+      }
+
+      document.getElementById(
+        "title"
+      ).textContent =
+        "Payment still processing";
+
+      document.getElementById(
+        "message"
+      ).textContent =
+        "We have not yet received confirmation of your payment. Please do not submit another payment.";
+    }
+
+    checkPayment();
+  </script>
+
+</body>
+</html>
+  `);
 });
 
 app.get("/xolvis-webhook", (req, res) => {
