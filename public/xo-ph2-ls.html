@@ -501,15 +501,16 @@ payNow.onclick = () => {
                 }
 
                 if (data.returnType === "REDIRECT" && data.redirectUrl) {
-                    window.location.href = data.redirectUrl;
-                    return;
-                }
+    window.location.href = data.redirectUrl;
+    return;
+}
 
-                const qs = new URLSearchParams(location.search);
-                window.location.href = "https://cudsr.bemobtrcks.com/go/40f5ab33-ff2e-46aa-88c8-8fab25a5f548" +
-                    "ref=" + encodeURIComponent(qs.get("ref") || "") +
-                    "&sub1=" + encodeURIComponent(qs.get("sub1") || "") +
-                    "&sub2=" + encodeURIComponent(qs.get("sub2") || "");
+if (data.paymentResultUrl) {
+    window.location.href = data.paymentResultUrl;
+    return;
+}
+
+throw new Error("Payment status could not be verified.");
 
             } catch (error) {
                 setLoading(false);
