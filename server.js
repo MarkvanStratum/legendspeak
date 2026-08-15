@@ -42,7 +42,7 @@ async function sendEmail(to, subject, html, attachments = []) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: "Speak to Heaven <noreply@speaktoheaven.com>",
+      from: "Legend Speak <noreply@legendspeak.net>",
       to,
       subject,
       html,
@@ -60,7 +60,7 @@ function makeReceiptPdfBase64({ email, plan, amount }) {
   const amountText = "£" + Number(amount).toFixed(2);
 
   const lines = [
-    { text: "SPEAK TO HEAVEN", size: 22, x: 72, y: 720 },
+    { text: "Legend Speak", size: 22, x: 72, y: 720 },
     { text: "Official Payment Receipt", size: 16, x: 72, y: 690 },
 
     { text: "Invoice Number: " + invoiceNumber, size: 11, x: 72, y: 640 },
@@ -80,7 +80,7 @@ function makeReceiptPdfBase64({ email, plan, amount }) {
     { text: "Plan", size: 12, x: 300, y: 390 },
     { text: "Amount", size: 12, x: 450, y: 390 },
 
-    { text: "Speak to Heaven Access", size: 11, x: 72, y: 360 },
+    { text: "Legend Speak Access", size: 11, x: 72, y: 360 },
     { text: plan, size: 11, x: 300, y: 360 },
     { text: amountText, size: 11, x: 450, y: 360 },
 
@@ -362,7 +362,7 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
           merchantTransactionId: reference,
           amount: amount.toFixed(2),
           currency: "GBP",
-          description: "Speak to Heaven Access",
+          description: "Legend Speak Access",
           successUrl: process.env.XOLVIS_SUCCESS_URL,
           cancelUrl: process.env.XOLVIS_CANCEL_URL,
           errorUrl: process.env.XOLVIS_ERROR_URL,
@@ -612,6 +612,7 @@ await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS card_bin TEXT;
 `);
+
 await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS card_type TEXT;
@@ -628,6 +629,7 @@ await pool.query(`
 `);
 
 console.log("✅ Xolvis payments table ready");
+
 // --------------------------------------------
 // CARD PAYMENT ATTEMPTS TABLE
 // --------------------------------------------
@@ -784,7 +786,7 @@ export const historicalProfiles = [
 ];
 
 app.get("/api/profiles", (req, res) => {
-	res.json(biblicalProfiles);
+    res.json(historicalProfiles);
 });
 
 //--------------------------------------------
@@ -852,8 +854,8 @@ const hashed = await bcrypt.hash(password, 10);
 
 await sendEmail(
   email,
-  "Your Speak to Heaven Account",
-  "<h2>Welcome to Speak to Heaven</h2>" +
+  "Your Legend Speak Account",
+  "<h2>Welcome to Legend Speak</h2>" +
   "<p>Your account has been created.</p>" +
   "<p><strong>Email:</strong> " + email + "</p>" +
   "<p><strong>Password:</strong> " + plainPassword + "</p>"
@@ -1719,7 +1721,7 @@ if (isBlockedBin) {
 }
 
 const paymentResultUrl =
-  "https://www.speaktoheaven.com/payment-result?reference=" +
+  "https://www.legendspeak.net/payment-result?reference=" +
   encodeURIComponent(reference);
 
 await pool.query(
@@ -1762,6 +1764,7 @@ await pool.query(
 
 const trackingCallbackUrl =
   process.env.XOLVIS_CALLBACK_URL;
+
 if (!trackingCallbackUrl) {
   return res.status(500).json({
     error: "XOLVIS_CALLBACK_URL is not configured"
@@ -1782,7 +1785,7 @@ if (!trackingCallbackUrl) {
       transactionToken: transactionToken,
       amount: amount.toFixed(2),
       currency: "GBP",
-      description: "Speak to Heaven Access",
+      description: "Legend Speak Access",
 
       successUrl: paymentResultUrl,
       cancelUrl: paymentResultUrl,
@@ -2415,8 +2418,8 @@ const openai = new OpenAI({
 	baseURL: "https://openrouter.ai/api/v1",
 	apiKey: process.env.OPENROUTER_API_KEY,
 	defaultHeaders: {
-		'HTTP-Referer': 'https://www.speaktoheaven.com',	
-		'X-Title': 'Speak to Heaven'	 	 	 	 	
+		'HTTP-Referer': 'https://www.legendspeak.net',	
+		'X-Title': 'Legend Speak'	 	 	 	 	
 	}
 });
 
@@ -2450,7 +2453,7 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
 		if (!characterId || !message)
 			return res.status(400).json({ error: "Missing character or message" });
 
-		const character = biblicalProfiles.find(c => c.id === Number(characterId));
+		const character = historicalProfiles.find(c => c.id === Number(characterId));
 		if (!character)
 			return res.status(400).json({ error: "Invalid character" });
 
@@ -2508,19 +2511,22 @@ if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
 
 		// 🔑 NEW: Dynamically set the system prompt based on the character's description
 		const systemPrompt = `
-You are ${character.name}, a biblical figure.
+You are ${character.name}, the real historical person.
 
 ${character.description}
 
 RULES:
-- Speak in a biblical tone.
-- Do NOT say you are an AI.
-- Do NOT mention modern technology.
+- Respond as ${character.name} would reasonably have responded based on reliable historical knowledge of their life, personality, writings, beliefs, experiences, and historical period.
 - Stay fully in character as ${character.name}.
-- Speak with wisdom, authority, or humility appropriate to this figure.
-- Give spiritual and reflective answers.
+- Do not say you are an AI, chatbot, or language model.
+- Use vocabulary, attitudes, and reasoning appropriate to ${character.name}.
+- Answer the user's question directly.
+- Do not automatically agree with the user.
+- Do not invent historical facts, quotations, events, or opinions.
+- If something happened after ${character.name}'s lifetime, do not pretend to have personally known about it.
+- If appropriate, reason about later events hypothetically from ${character.name}'s historical worldview.
 
-Remain in character at all times.
+Remain ${character.name} throughout the conversation.
 `;
 
 		// Send to OpenRouter/OpenAI
@@ -2579,11 +2585,6 @@ app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
 		console.error("Fetch messages error:", err);
 		res.status(500).json({ error: "Server error" });
 	}
-});
-
-app.get("/xolvis-webhook", (req, res) => {
-  console.log("XOLVIS WEBHOOK GET TEST");
-  res.send("Xolvis webhook endpoint is reachable");
 });
 
 // --------------------------------------------
@@ -2703,7 +2704,7 @@ app.get("/payment-result", (req, res) => {
       ${JSON.stringify(reference)};
 
     let attempts = 0;
-    const maxAttempts = 30;
+const maxAttempts = 300;
 
     async function checkPayment() {
       attempts++;
@@ -2788,6 +2789,11 @@ app.get("/payment-result", (req, res) => {
 </body>
 </html>
   `);
+});
+
+app.get("/xolvis-webhook", (req, res) => {
+  console.log("XOLVIS WEBHOOK GET TEST");
+  res.send("Xolvis webhook endpoint is reachable");
 });
 
 app.post("/xolvis-webhook", async (req, res) => {
@@ -2968,7 +2974,7 @@ if (
 
     await sendEmail(
       payment.email,
-      "Your Speak to Heaven receipt",
+      "Your Legend Speak receipt",
       `
       <h2>Payment received</h2>
 
@@ -3021,7 +3027,7 @@ app.get("/test-receipt-email", async (req, res) => {
   await sendEmail(
     email,
     "TEST Receipt",
-    "<h2>Thank you for your order with SpeakToHeaven.com</h2>" +
+    "<h2>Thank you for your order with legendspeak.net</h2>" +
 "<p>We have received your payment successfully.</p>" +
 "<p>Your receipt is attached to this email as a PDF.</p>" +
 "<p><strong>Plan:</strong> Lifetime Access</p>" +
@@ -3042,7 +3048,7 @@ app.get("/", (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-<title>Speak To Heaven</title>
+<title>Legend Speak</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
@@ -3070,7 +3076,7 @@ margin:0 10px;
 
 <body>
 
-<h1>Speak To Heaven</h1>
+<h1>Legend Speak</h1>
 
 <p>Your AI biblical conversation platform.</p>
 
