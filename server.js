@@ -1467,8 +1467,14 @@ const binomClickid =
 
 const subId =
   originalParams.get("sub_id") || "";
-const email = checkout.email;
-    const selectedPlan = checkout.plan || "3795";
+
+const email =
+  String(checkout.email || "")
+    .trim()
+    .toLowerCase();
+
+const selectedPlan =
+  checkout.plan || "3795";
 
 const amounts = {
   "2295": 22.95,
@@ -1477,12 +1483,60 @@ const amounts = {
   "lifetime": 37.95
 };
 
-        const amount = amounts[selectedPlan];
+const amount = amounts[selectedPlan];
 
-    if (!amount) {
-      return res.status(400).json({ error: "Invalid promo plan" });
-    }
+if (!amount) {
+  return res.status(400).json({
+    error: "Invalid promo plan"
+  });
+}
 
+
+// --------------------------------------------
+// MAXIMUM 3 PAYMENT ATTEMPTS PER EMAIL / 24 HOURS
+// --------------------------------------------
+
+const previousAttemptsResult =
+  await pool.query(
+    `
+    SELECT COUNT(*)::int AS attempt_count
+    FROM xolvis_payments
+    WHERE LOWER(email) = $1
+      AND created_at >= NOW() - INTERVAL '24 hours'
+      AND reference LIKE 'promo-%'
+      AND UPPER(COALESCE(status, '')) NOT IN (
+        'OK',
+        'FINISHED',
+        'SUCCESSFUL'
+      )
+    `,
+    [email]
+  );
+
+const previousAttempts =
+  Number(
+    previousAttemptsResult.rows[0]?.attempt_count || 0
+  );
+
+console.log(
+  "PAYMENT ATTEMPTS FOR EMAIL:",
+  email,
+  previousAttempts
+);
+
+if (previousAttempts >= 3) {
+  console.warn(
+    "PAYMENT BLOCKED: TOO MANY ATTEMPTS:",
+    email
+  );
+
+  return res.status(429).json({
+    success: false,
+    error:
+      "You have reached the maximum number of payment attempts. Please try again later.",
+    code: "TOO_MANY_PAYMENT_ATTEMPTS"
+  });
+}
     
 let mainSiteSuccessUrl;
 
