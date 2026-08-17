@@ -2663,7 +2663,8 @@ app.get("/api/payment-result-status", async (req, res) => {
         reference,
         status,
         paid_at,
-        final_redirect_url
+        final_redirect_url,
+        xolvis_payload
       FROM xolvis_payments
       WHERE reference = $1
       LIMIT 1
@@ -2680,22 +2681,100 @@ app.get("/api/payment-result-status", async (req, res) => {
 
     const payment = result.rows[0];
 
+    const status =
+      String(payment.status || "")
+        .trim()
+        .toUpperCase();
+
+    const payload =
+      payment.xolvis_payload || {};
+
+    const gatewayMessage =
+      String(payload.message || "")
+        .trim()
+        .toLowerCase();
+
+    const adapterMessage =
+      String(payload.adapterMessage || "")
+        .trim()
+        .toLowerCase();
+
+    const gatewayCode =
+      String(payload.code || "")
+        .trim();
+
+    // --------------------------------------------
+    // REAL SUCCESS
+    // --------------------------------------------
+
     if (
       payment.paid_at &&
       payment.final_redirect_url
     ) {
       return res.json({
         ok: true,
+        final: true,
         successful: true,
-        status: payment.status,
+        resultType: "SUCCESS",
+        status: status,
         redirectUrl: payment.final_redirect_url
       });
     }
 
+    // --------------------------------------------
+    // EXPLICIT USER CANCELLATION
+    // --------------------------------------------
+
+    const isUserCancelled =
+      gatewayCode === "1003" ||
+      gatewayMessage === "user cancelled" ||
+      adapterMessage === "cancelled by user";
+
+    if (isUserCancelled) {
+      return res.json({
+        ok: true,
+        final: true,
+        successful: false,
+        resultType: "CANCEL",
+        status: status,
+        redirectUrl:
+          process.env.XOLVIS_CANCEL_URL || ""
+      });
+    }
+
+    // --------------------------------------------
+    // ALL OTHER FINAL FAILURES
+    // --------------------------------------------
+
+    const isFailure =
+      status === "ERROR" ||
+      status === "FAILED" ||
+      status === "DECLINED" ||
+      status === "CANCELLED" ||
+      status === "BLOCKED";
+
+    if (isFailure) {
+      return res.json({
+        ok: true,
+        final: true,
+        successful: false,
+        resultType: "ERROR",
+        status: status,
+        redirectUrl:
+          process.env.XOLVIS_ERROR_URL || ""
+      });
+    }
+
+    // --------------------------------------------
+    // STILL WAITING FOR FINAL WEBHOOK
+    // --------------------------------------------
+
     return res.json({
       ok: true,
+      final: false,
       successful: false,
-      status: payment.status || "UNKNOWN"
+      resultType: "PENDING",
+      status: status || "UNKNOWN"
     });
 
   } catch (err) {
@@ -2731,6 +2810,7 @@ app.get("/payment-result", (req, res) => {
 <html>
 <head>
   <meta charset="UTF-8">
+
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1"
@@ -2758,7 +2838,8 @@ app.get("/payment-result", (req, res) => {
       ${JSON.stringify(reference)};
 
     let attempts = 0;
-const maxAttempts = 300;
+
+    const maxAttempts = 300;
 
     async function checkPayment() {
       attempts++;
@@ -2772,40 +2853,17 @@ const maxAttempts = 300;
           }
         );
 
-        const data = await response.json();
+        const data =
+          await response.json();
 
         if (
           data.ok === true &&
-          data.successful === true &&
+          data.final === true &&
           data.redirectUrl
         ) {
           window.location.replace(
             data.redirectUrl
           );
-
-          return;
-        }
-
-        const status =
-          String(data.status || "")
-            .toUpperCase();
-
-        if (
-          status === "ERROR" ||
-          status === "FAILED" ||
-          status === "DECLINED" ||
-          status === "CANCELLED" ||
-          status === "BLOCKED"
-        ) {
-          document.getElementById(
-            "title"
-          ).textContent =
-            "Payment not completed";
-
-          document.getElementById(
-            "message"
-          ).textContent =
-            "Your payment was not completed. Please return and try again.";
 
           return;
         }
@@ -2844,7 +2902,6 @@ const maxAttempts = 300;
 </html>
   `);
 });
-
 app.get("/xolvis-webhook", (req, res) => {
   console.log("XOLVIS WEBHOOK GET TEST");
   res.send("Xolvis webhook endpoint is reachable");
