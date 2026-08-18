@@ -2685,7 +2685,6 @@ const paymentInitFailures =
   }));
 
       return res.json({
-      return res.json({
         success: true,
         period: "last_24_hours",
 
