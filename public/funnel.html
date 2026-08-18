@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Promo Funnel</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f5f6f8;
+            margin: 0;
+            padding: 30px;
+            color: #222;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .login-box {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+
+        input {
+            padding: 10px;
+            width: 260px;
+            font-size: 15px;
+        }
+
+        button {
+            padding: 10px 18px;
+            font-size: 15px;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns:
+                repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+
+        .label {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .value {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .percentage {
+            background: white;
+            padding: 18px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        }
+
+        .error {
+            color: #b00020;
+            margin-top: 15px;
+        }
+
+        #results {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>Promo Funnel</h1>
+
+    <div class="subtitle">
+        Last 24 hours
+    </div>
+
+    <div class="login-box">
+        <strong>Admin password:</strong>
+        <br><br>
+
+        <input
+            id="adminPassword"
+            type="password"
+            placeholder="Enter admin password"
+        >
+
+        <button id="loadButton">
+            Load results
+        </button>
+
+        <button id="refreshButton">
+            Refresh
+        </button>
+
+        <div
+            id="errorMessage"
+            class="error"
+        ></div>
+    </div>
+
+    <div id="results">
+
+        <div class="grid">
+
+            <div class="card">
+                <div class="label">
+                    Page 1 loaded
+                </div>
+
+                <div
+                    class="value"
+                    id="page1Loaded"
+                >
+                    0
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="label">
+                    Button clicked
+                </div>
+
+                <div
+                    class="value"
+                    id="buttonClicked"
+                >
+                    0
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="label">
+                    Checkout link created
+                </div>
+
+                <div
+                    class="value"
+                    id="checkoutCreated"
+                >
+                    0
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="label">
+                    Page 2 loaded
+                </div>
+
+                <div
+                    class="value"
+                    id="page2Loaded"
+                >
+                    0
+                </div>
+            </div>
+
+        </div>
+
+        <div class="percentage">
+            <span>
+                Page 1 → Button click
+            </span>
+
+            <strong id="page1ToClick">
+                0%
+            </strong>
+        </div>
+
+        <div class="percentage">
+            <span>
+                Button click → Checkout created
+            </span>
+
+            <strong id="clickToCheckout">
+                0%
+            </strong>
+        </div>
+
+        <div class="percentage">
+            <span>
+                Checkout created → Page 2
+            </span>
+
+            <strong id="checkoutToPage2">
+                0%
+            </strong>
+        </div>
+
+        <div class="percentage">
+            <span>
+                Button click → Page 2
+            </span>
+
+            <strong id="clickToPage2">
+                0%
+            </strong>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+
+const passwordInput =
+    document.getElementById(
+        "adminPassword"
+    );
+
+const loadButton =
+    document.getElementById(
+        "loadButton"
+    );
+
+const refreshButton =
+    document.getElementById(
+        "refreshButton"
+    );
+
+const errorMessage =
+    document.getElementById(
+        "errorMessage"
+    );
+
+const results =
+    document.getElementById(
+        "results"
+    );
+
+const savedPassword =
+    sessionStorage.getItem(
+        "funnel_admin_password"
+    );
+
+if (savedPassword) {
+    passwordInput.value =
+        savedPassword;
+}
+
+async function loadFunnelResults() {
+
+    errorMessage.textContent = "";
+
+    const password =
+        passwordInput.value.trim();
+
+    if (!password) {
+        errorMessage.textContent =
+            "Please enter the admin password.";
+
+        return;
+    }
+
+    sessionStorage.setItem(
+        "funnel_admin_password",
+        password
+    );
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/admin/promo-funnel-summary",
+                {
+                    method: "GET",
+
+                    headers: {
+                        "x-admin-password":
+                            password
+                    },
+
+                    cache: "no-store"
+                }
+            );
+
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                data.error ||
+                "Could not load funnel results."
+            );
+        }
+
+        document.getElementById(
+            "page1Loaded"
+        ).textContent =
+            data.page1Loaded;
+
+        document.getElementById(
+            "buttonClicked"
+        ).textContent =
+            data.buttonClicked;
+
+        document.getElementById(
+            "checkoutCreated"
+        ).textContent =
+            data.checkoutCreated;
+
+        document.getElementById(
+            "page2Loaded"
+        ).textContent =
+            data.page2Loaded;
+
+        document.getElementById(
+            "page1ToClick"
+        ).textContent =
+            data.page1ToClickPercent +
+            "%";
+
+        document.getElementById(
+            "clickToCheckout"
+        ).textContent =
+            data.clickToCheckoutPercent +
+            "%";
+
+        document.getElementById(
+            "checkoutToPage2"
+        ).textContent =
+            data.checkoutToPage2Percent +
+            "%";
+
+        document.getElementById(
+            "clickToPage2"
+        ).textContent =
+            data.clickToPage2Percent +
+            "%";
+
+        results.style.display =
+            "block";
+
+    } catch (error) {
+
+        results.style.display =
+            "none";
+
+        errorMessage.textContent =
+            error.message ||
+            "Could not load results.";
+    }
+}
+
+loadButton.onclick =
+    loadFunnelResults;
+
+refreshButton.onclick =
+    loadFunnelResults;
+
+if (savedPassword) {
+    loadFunnelResults();
+}
+
+</script>
+
+</body>
+</html>
