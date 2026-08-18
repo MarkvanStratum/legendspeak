@@ -331,7 +331,68 @@
     <strong id="paymentClickToXolvis">
         0%
     </strong>
-</div>    </div>
+</div>    
+
+<div
+    style="
+        background:white;
+        padding:20px;
+        margin-top:25px;
+        border-radius:10px;
+        box-shadow:0 2px 10px rgba(0,0,0,0.06);
+    "
+>
+    <h2 style="margin-top:0;">
+        Tokenization Failures
+    </h2>
+
+    <div
+        id="noTokenFailures"
+        style="color:#666;"
+    >
+        No tokenization failures recorded.
+    </div>
+
+    <div
+        style="
+            overflow-x:auto;
+            margin-top:15px;
+        "
+    >
+        <table
+            id="tokenFailureTable"
+            style="
+                width:100%;
+                border-collapse:collapse;
+                display:none;
+                font-size:13px;
+            "
+        >
+            <thead>
+                <tr>
+                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">
+                        Time
+                    </th>
+
+                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">
+                        Affiliate
+                    </th>
+
+                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">
+                        Failure reason
+                    </th>
+
+                    <th style="text-align:left;padding:8px;border-bottom:1px solid #ddd;">
+                        Browser / device
+                    </th>
+                </tr>
+            </thead>
+
+            <tbody id="tokenFailureRows">
+            </tbody>
+        </table>
+    </div>
+</div></div>
 
 </div>
 
@@ -511,6 +572,128 @@ document.getElementById(
 ).textContent =
     data.paymentClickToXolvisPercent +
     "%";
+
+
+const tokenFailureRows =
+    document.getElementById(
+        "tokenFailureRows"
+    );
+
+const tokenFailureTable =
+    document.getElementById(
+        "tokenFailureTable"
+    );
+
+const noTokenFailures =
+    document.getElementById(
+        "noTokenFailures"
+    );
+
+
+tokenFailureRows.innerHTML = "";
+
+
+const failures =
+    Array.isArray(data.tokenFailures)
+        ? data.tokenFailures
+        : [];
+
+
+if (failures.length === 0) {
+
+    tokenFailureTable.style.display =
+        "none";
+
+    noTokenFailures.style.display =
+        "block";
+
+} else {
+
+    tokenFailureTable.style.display =
+        "table";
+
+    noTokenFailures.style.display =
+        "none";
+
+
+    failures.forEach(function (failure) {
+
+        const row =
+            document.createElement("tr");
+
+
+        const timeCell =
+            document.createElement("td");
+
+        timeCell.style.padding = "8px";
+        timeCell.style.borderBottom =
+            "1px solid #eee";
+
+        timeCell.textContent =
+            failure.createdAt
+                ? new Date(
+                    failure.createdAt
+                  ).toLocaleString()
+                : "";
+
+
+        const affiliateCell =
+            document.createElement("td");
+
+        affiliateCell.style.padding = "8px";
+        affiliateCell.style.borderBottom =
+            "1px solid #eee";
+
+        affiliateCell.textContent =
+            failure.affiliateRef || "-";
+
+
+        const reasonCell =
+            document.createElement("td");
+
+        reasonCell.style.padding = "8px";
+        reasonCell.style.borderBottom =
+            "1px solid #eee";
+
+        reasonCell.style.maxWidth =
+            "350px";
+
+        reasonCell.style.wordBreak =
+            "break-word";
+
+        reasonCell.textContent =
+            failure.details ||
+            "No error details received";
+
+
+        const browserCell =
+            document.createElement("td");
+
+        browserCell.style.padding = "8px";
+        browserCell.style.borderBottom =
+            "1px solid #eee";
+
+        browserCell.style.maxWidth =
+            "300px";
+
+        browserCell.style.wordBreak =
+            "break-word";
+
+        browserCell.textContent =
+            failure.userAgent || "-";
+
+
+        row.appendChild(timeCell);
+        row.appendChild(affiliateCell);
+        row.appendChild(reasonCell);
+        row.appendChild(browserCell);
+
+        tokenFailureRows.appendChild(row);
+
+    });
+
+}
+
 
 results.style.display =
     "block";

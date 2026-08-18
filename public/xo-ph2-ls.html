@@ -631,6 +631,31 @@ throw new Error("Payment status could not be verified.");
         errors
     );
 
+    let errorDetails = "";
+
+    try {
+        errorDetails =
+            JSON.stringify(errors);
+    } catch (error) {
+        errorDetails =
+            String(
+                errors ||
+                "Unknown tokenization error"
+            );
+    }
+
+    if (
+        !errorDetails ||
+        errorDetails === "{}" ||
+        errorDetails === "[]"
+    ) {
+        errorDetails =
+            String(
+                errors ||
+                "Unknown tokenization error"
+            );
+    }
+
     fetch(
         "/api/promo-funnel-event",
         {
@@ -656,7 +681,10 @@ throw new Error("Payment status could not be verified.");
                 affiliateRef:
                     new URLSearchParams(
                         window.location.search
-                    ).get("ref") || ""
+                    ).get("ref") || "",
+
+                eventDetails:
+                    errorDetails
             }),
 
             keepalive: true
