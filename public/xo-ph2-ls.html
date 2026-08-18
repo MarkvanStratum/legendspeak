@@ -526,14 +526,52 @@ payNow.onclick = () => {
     setLoading(true);
 
     payment.tokenize(
-        {
-            card_holder: cardholderName,
-            month: expMonth,
-            year: expYear
-        },
-        async function (transactionToken, cardData) {
-            try {
-                const response = await fetch("/api/create-promo-payment", {
+    {
+        card_holder: cardholderName,
+        month: expMonth,
+        year: expYear
+    },
+    async function (transactionToken, cardData) {
+
+        fetch(
+            "/api/promo-funnel-event",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body: JSON.stringify({
+                    flowId:
+                        sessionStorage.getItem(
+                            "promo_flow_id"
+                        ) || "",
+
+                    eventName:
+                        "PAYMENT_TOKEN_CREATED",
+
+                    pageUrl:
+                        window.location.href,
+
+                    affiliateRef:
+                        new URLSearchParams(
+                            window.location.search
+                        ).get("ref") || ""
+                }),
+
+                keepalive: true
+            }
+        ).catch(function (error) {
+            console.log(
+                "Token-created tracking error:",
+                error
+            );
+        });
+
+        try {
+            const response = await fetch("/api/create-promo-payment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -587,9 +625,57 @@ throw new Error("Payment status could not be verified.");
             }
         },
         function (errors) {
-            setLoading(false);
-            showError("Please check your card details and try again.");
+
+    console.error(
+        "PAYMENT TOKENIZATION FAILED:",
+        errors
+    );
+
+    fetch(
+        "/api/promo-funnel-event",
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+                flowId:
+                    sessionStorage.getItem(
+                        "promo_flow_id"
+                    ) || "",
+
+                eventName:
+                    "PAYMENT_TOKEN_FAILED",
+
+                pageUrl:
+                    window.location.href,
+
+                affiliateRef:
+                    new URLSearchParams(
+                        window.location.search
+                    ).get("ref") || ""
+            }),
+
+            keepalive: true
         }
+    ).catch(function (trackingError) {
+
+        console.log(
+            "Token-failed tracking error:",
+            trackingError
+        );
+
+    });
+
+    setLoading(false);
+
+    showError(
+        "Please check your card details and try again."
+    );
+}
     );
 };
 </script>

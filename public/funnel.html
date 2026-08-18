@@ -205,6 +205,32 @@
 
 <div class="card">
     <div class="label">
+        Payment token created
+    </div>
+
+    <div
+        class="value"
+        id="paymentTokenCreated"
+    >
+        0
+    </div>
+</div>
+
+<div class="card">
+    <div class="label">
+        Payment token failed
+    </div>
+
+    <div
+        class="value"
+        id="paymentTokenFailed"
+    >
+        0
+    </div>
+</div>
+
+<div class="card">
+    <div class="label">
         Xolvis transaction created
     </div>
 
@@ -215,7 +241,6 @@
         0
     </div>
 </div>
-
         </div>
 
         <div class="percentage">
@@ -270,14 +295,43 @@
 
 <div class="percentage">
     <span>
+        Pay button → Token created
+    </span>
+
+    <strong id="paymentClickToToken">
+        0%
+    </strong>
+</div>
+
+<div class="percentage">
+    <span>
+        Pay button → Token failed
+    </span>
+
+    <strong id="paymentTokenFail">
+        0%
+    </strong>
+</div>
+
+<div class="percentage">
+    <span>
+        Token created → Xolvis transaction
+    </span>
+
+    <strong id="tokenToXolvis">
+        0%
+    </strong>
+</div>
+
+<div class="percentage">
+    <span>
         Pay button → Xolvis transaction
     </span>
 
     <strong id="paymentClickToXolvis">
         0%
     </strong>
-</div>
-    </div>
+</div>    </div>
 
 </div>
 
@@ -390,6 +444,16 @@ document.getElementById(
     data.paymentButtonClicked;
 
 document.getElementById(
+    "paymentTokenCreated"
+).textContent =
+    data.paymentTokenCreated;
+
+document.getElementById(
+    "paymentTokenFailed"
+).textContent =
+    data.paymentTokenFailed;
+
+document.getElementById(
     "xolvisTransactionCreated"
 ).textContent =
     data.xolvisTransactionCreated;
@@ -425,12 +489,31 @@ document.getElementById(
     "%";
 
 document.getElementById(
+    "paymentClickToToken"
+).textContent =
+    data.paymentClickToTokenPercent +
+    "%";
+
+document.getElementById(
+    "paymentTokenFail"
+).textContent =
+    data.paymentTokenFailPercent +
+    "%";
+
+document.getElementById(
+    "tokenToXolvis"
+).textContent =
+    data.tokenToXolvisPercent +
+    "%";
+
+document.getElementById(
     "paymentClickToXolvis"
 ).textContent =
     data.paymentClickToXolvisPercent +
     "%";
-        results.style.display =
-            "block";
+
+results.style.display =
+    "block";
 
     } catch (error) {
 
