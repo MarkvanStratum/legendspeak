@@ -229,80 +229,455 @@ window.addEventListener("DOMContentLoaded", () => {
 backBtn.onclick = () => { window.history.back(); };
 
 payNow.onclick = () => {
+
     clearError();
 
-    if (!tokenFromServer || !paymentReady || !payment) {
-        showError("Los campos de pago aún se están cargando. Por favor espera.");
+    let promoFlowId =
+        sessionStorage.getItem(
+            "promo_flow_id"
+        );
+
+    if (!promoFlowId) {
+
+        if (
+            window.crypto &&
+            typeof window.crypto.randomUUID === "function"
+        ) {
+            promoFlowId =
+                window.crypto.randomUUID();
+        } else {
+            promoFlowId =
+                Date.now().toString(36) +
+                Math.random().toString(36).slice(2);
+        }
+
+        sessionStorage.setItem(
+            "promo_flow_id",
+            promoFlowId
+        );
+    }
+
+    fetch(
+        "/api/promo-funnel-event",
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+                flowId:
+                    promoFlowId,
+
+                eventName:
+                    "PAYMENT_BUTTON_CLICKED",
+
+                pageUrl:
+                    window.location.href,
+
+                affiliateRef:
+                    new URLSearchParams(
+                        window.location.search
+                    ).get("ref") || ""
+            }),
+
+            keepalive: true
+        }
+    ).catch(function (error) {
+
+        console.log(
+            "Funnel tracking error:",
+            error
+        );
+    });
+
+    if (!tokenFromServer) {
+
+        showError(
+            "El enlace de pago no es válido o ha expirado."
+        );
+
         return;
     }
 
-    const cardholderName = cardholderInput.value.trim();
-    const expMonth = document.getElementById("exp_month").value.trim();
-    const expYear = document.getElementById("exp_year").value.trim();
+    if (!paymentReady || !payment) {
 
-    if (!cardholderName || !expMonth || !expYear) {
-        showError("Por favor completa todos los datos de tu tarjeta.");
+        showError(
+            "Los campos de pago aún se están cargando. Por favor espera."
+        );
+
+        return;
+    }
+
+    const cardholderName =
+        cardholderInput.value.trim();
+
+    const expMonth =
+        document
+            .getElementById("exp_month")
+            .value
+            .trim();
+
+    const expYear =
+        document
+            .getElementById("exp_year")
+            .value
+            .trim();
+
+    if (
+        !cardholderName ||
+        !expMonth ||
+        !expYear
+    ) {
+
+        showError(
+            "Por favor completa todos los datos de tu tarjeta."
+        );
+
         return;
     }
 
     setLoading(true);
 
     payment.tokenize(
-        { card_holder: cardholderName, month: expMonth, year: expYear },
-        async function (transactionToken, cardData) {
-            try {
-                const response = await fetch("/api/create-promo-payment", {
+        {
+            card_holder:
+                cardholderName,
+
+            month:
+                expMonth,
+
+            year:
+                expYear
+        },
+
+        async function (
+            transactionToken,
+            cardData
+        ) {
+
+            fetch(
+                "/api/promo-funnel-event",
+                {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
                     body: JSON.stringify({
-                        checkoutToken: tokenFromServer,
-                        cardholderName: cardholderName,
-                        transactionToken: transactionToken,
-                        cardData: cardData,
-                        clickid: new URLSearchParams(window.location.search).get("clickid") || "",
-                        affiliate_source: new URLSearchParams(window.location.search).get("affiliate_source") || ""
-                    })
-                });
+                        flowId:
+                            sessionStorage.getItem(
+                                "promo_flow_id"
+                            ) || "",
 
-                const text = await response.text();
+                        eventName:
+                            "PAYMENT_TOKEN_CREATED",
+
+                        pageUrl:
+                            window.location.href,
+
+                        affiliateRef:
+                            new URLSearchParams(
+                                window.location.search
+                            ).get("ref") || ""
+                    }),
+
+                    keepalive: true
+                }
+            ).catch(function (error) {
+
+                console.log(
+                    "Token-created tracking error:",
+                    error
+                );
+            });
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/api/create-promo-payment",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+                                checkoutToken:
+                                    tokenFromServer,
+
+                                cardholderName:
+                                    cardholderName,
+
+                                transactionToken:
+                                    transactionToken,
+
+                                cardData:
+                                    cardData,
+
+                                flowId:
+                                    sessionStorage.getItem(
+                                        "promo_flow_id"
+                                    ) || "",
+
+                                clickid:
+                                    new URLSearchParams(
+                                        window.location.search
+                                    ).get("clickid") || "",
+
+                                affiliate_source:
+                                    new URLSearchParams(
+                                        window.location.search
+                                    ).get("affiliate_source") || ""
+                            })
+                        }
+                    );
+
+                const text =
+                    await response.text();
+
                 let data;
-                try { data = JSON.parse(text); }
-                catch { throw new Error("El servidor devolvió una respuesta no válida."); }
 
-                if (!response.ok || data.success === false || data.returnType === "ERROR") {
-                    throw new Error(data.error || data.errorMessage || "El pago ha fallado.");
+                try {
+
+                    data =
+                        JSON.parse(text);
+
+                } catch {
+
+                    throw new Error(
+                        "El servidor devolvió una respuesta no válida."
+                    );
                 }
 
-                if (data.returnType === "REDIRECT" && data.redirectUrl) {
-                    window.location.href = data.redirectUrl;
+                if (
+                    !response.ok ||
+                    data.success === false ||
+                    data.returnType === "ERROR"
+                ) {
+
+                    throw new Error(
+                        data.error ||
+                        data.errorMessage ||
+                        data.details?.errorMessage ||
+                        "El pago ha fallado."
+                    );
+                }
+
+                if (
+                    data.returnType === "REDIRECT" &&
+                    data.redirectUrl
+                ) {
+
+                    window.location.href =
+                        data.redirectUrl;
+
                     return;
                 }
 
-                const affiliateRef = params.get("ref") || "";
-                const sub1 = params.get("sub1") || "";
-                const sub2 = params.get("sub2") || "";
+                if (data.paymentResultUrl) {
 
-                window.location.href =
-                    "https://cudsr.bemobtrcks.com/go/40f5ab33-ff2e-46aa-88c8-8fab25a5f548?" +
-                    "ref=" + encodeURIComponent(affiliateRef) +
-                    "&sub1=" + encodeURIComponent(sub1) +
-                    "&sub2=" + encodeURIComponent(sub2);
+                    window.location.href =
+                        data.paymentResultUrl;
+
+                    return;
+                }
+
+                throw new Error(
+                    "No se pudo verificar el estado del pago."
+                );
 
             } catch (error) {
-                console.error("Xolvis payment error:", error);
+
+                console.error(
+                    "Xolvis payment error:",
+                    error
+                );
+
                 setLoading(false);
-                showError(error?.message || "Error al procesar el pago.");
+
+                showError(
+                    error?.message ||
+                    "Error al procesar el pago."
+                );
             }
         },
+
         function (errors) {
+
+            console.error(
+                "PAYMENT TOKENIZATION FAILED:",
+                errors
+            );
+
+            let errorDetails = "";
+
+            try {
+
+                errorDetails =
+                    JSON.stringify(errors);
+
+            } catch (error) {
+
+                errorDetails =
+                    String(
+                        errors ||
+                        "Unknown tokenization error"
+                    );
+            }
+
+            if (
+                !errorDetails ||
+                errorDetails === "{}" ||
+                errorDetails === "[]"
+            ) {
+
+                errorDetails =
+                    String(
+                        errors ||
+                        "Unknown tokenization error"
+                    );
+            }
+
+            fetch(
+                "/api/promo-funnel-event",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        flowId:
+                            sessionStorage.getItem(
+                                "promo_flow_id"
+                            ) || "",
+
+                        eventName:
+                            "PAYMENT_TOKEN_FAILED",
+
+                        pageUrl:
+                            window.location.href,
+
+                        affiliateRef:
+                            new URLSearchParams(
+                                window.location.search
+                            ).get("ref") || "",
+
+                        eventDetails:
+                            errorDetails
+                    }),
+
+                    keepalive: true
+                }
+            ).catch(function (
+                trackingError
+            ) {
+
+                console.log(
+                    "Token-failed tracking error:",
+                    trackingError
+                );
+            });
+
             setLoading(false);
-            const message = Array.isArray(errors)
-                ? errors.map(e => e.message || e.key || "Error en el campo de pago").join(" ")
-                : "Por favor verifica los datos de tu tarjeta.";
+
+            const message =
+                Array.isArray(errors)
+                    ? errors
+                        .map(function (error) {
+                            return (
+                                error.message ||
+                                error.key ||
+                                "Error en el campo de pago"
+                            );
+                        })
+                        .join(" ")
+                    : "Por favor verifica los datos de tu tarjeta.";
+
             showError(message);
         }
     );
-};
+};</script>
+
+<script>
+(function () {
+
+    let promoFlowId =
+        sessionStorage.getItem(
+            "promo_flow_id"
+        );
+
+    if (!promoFlowId) {
+
+        if (
+            window.crypto &&
+            typeof window.crypto.randomUUID === "function"
+        ) {
+            promoFlowId =
+                window.crypto.randomUUID();
+        } else {
+            promoFlowId =
+                Date.now().toString(36) +
+                Math.random().toString(36).slice(2);
+        }
+
+        sessionStorage.setItem(
+            "promo_flow_id",
+            promoFlowId
+        );
+    }
+
+    const params =
+        new URLSearchParams(
+            window.location.search
+        );
+
+    fetch(
+        "/api/promo-funnel-event",
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+                flowId:
+                    promoFlowId,
+
+                eventName:
+                    "PAGE2_LOADED",
+
+                pageUrl:
+                    window.location.href,
+
+                affiliateRef:
+                    params.get("ref") || ""
+            }),
+
+            keepalive: true
+        }
+    ).catch(function (error) {
+
+        console.log(
+            "Funnel tracking error:",
+            error
+        );
+    });
+
+})();
 </script>
+
 </body>
 </html>
