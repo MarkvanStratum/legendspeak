@@ -153,6 +153,70 @@ const cardholderInput = document.getElementById("cardholder-name");
 let payment = null;
 let paymentReady = false;
 
+function trackPromoEvent(eventName, eventDetails = null) {
+
+    let promoFlowId =
+        sessionStorage.getItem(
+            "promo_flow_id"
+        );
+
+    if (!promoFlowId) {
+
+        if (
+            window.crypto &&
+            typeof window.crypto.randomUUID === "function"
+        ) {
+            promoFlowId =
+                window.crypto.randomUUID();
+        } else {
+            promoFlowId =
+                Date.now().toString(36) +
+                Math.random().toString(36).slice(2);
+        }
+
+        sessionStorage.setItem(
+            "promo_flow_id",
+            promoFlowId
+        );
+    }
+
+    try {
+        fetch("/api/promo-funnel-event", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                flowId:
+                    promoFlowId,
+
+                eventName:
+                    eventName,
+
+                pageUrl:
+                    window.location.href,
+
+                affiliateRef:
+                    params.get("ref") || "",
+
+                eventDetails:
+                    eventDetails
+            }),
+            keepalive: true
+        }).catch(function (error) {
+            console.log(
+                "Promo funnel tracking error:",
+                error
+            );
+        });
+
+    } catch (error) {
+        console.log(
+            "Promo funnel tracking error:",
+            error
+        );
+    }
+}
 function showError(message) {
     err.textContent = message;
     err.setAttribute("aria-hidden", "false");
@@ -169,8 +233,9 @@ function setLoading(isLoading) {
 }
 
 window.addEventListener("DOMContentLoaded", () => {
-    const d = v => {
-        try { return decodeURIComponent(v || '') }
+    trackPromoEvent("PAGE2_LOADED");
+
+    const d = v => {        try { return decodeURIComponent(v || '') }
         catch { return v || '' }
     };
 
@@ -202,9 +267,10 @@ window.addEventListener("DOMContentLoaded", () => {
             publicIntegrationKey,
             "number_div",
             "cvv_div",
-            function (paymentInstance) {
-                paymentReady = true;
-                paymentInstance.setNumberPlaceholder("•••• •••• •••• ••••");
+           function (paymentInstance) {
+    paymentReady = true;
+    trackPromoEvent("PAYMENT_FIELDS_READY");
+    paymentInstance.setNumberPlaceholder("•••• •••• •••• ••••");
                 paymentInstance.setCvvPlaceholder("•••");
                 paymentInstance.setNumberStyle({
                     "font-size": "15px",
@@ -220,8 +286,12 @@ window.addEventListener("DOMContentLoaded", () => {
             }
         );
     } catch (error) {
-        console.error("Xolvis initialization error:", error);
-        showError(error?.message || "Could not load payment fields.");
+    console.error("Xolvis initialization error:", error);
+    trackPromoEvent(
+        "PAYMENT_INIT_FAILED",
+        error?.message || String(error)
+    );
+    showError(error?.message || "Could not load payment fields.");
         payNow.disabled = true;
     }
 });
@@ -231,8 +301,9 @@ backBtn.onclick = () => { window.history.back(); };
 payNow.onclick = () => {
     clearError();
 
-    if (!tokenFromServer || !paymentReady || !payment) {
-        showError("Payment fields are still loading. Please wait.");
+    trackPromoEvent("PAYMENT_BUTTON_CLICKED");
+
+    if (!tokenFromServer || !paymentReady || !payment) {        showError("Payment fields are still loading. Please wait.");
         return;
     }
 
@@ -250,8 +321,10 @@ payNow.onclick = () => {
     payment.tokenize(
         { card_holder: cardholderName, month: expMonth, year: expYear },
         async function (transactionToken, cardData) {
-            try {
-                const response = await fetch("/api/create-promo-payment", {
+    trackPromoEvent("PAYMENT_TOKEN_CREATED");
+
+    try {
+        const response = await fetch("/api/create-promo-payment", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -291,13 +364,25 @@ throw new Error("Payment status could not be verified.");
                 showError(error?.message || "Error processing payment.");
             }
         },
-        function (errors) {
-            setLoading(false);
-            const message = Array.isArray(errors)
-                ? errors.map(e => e.message || e.key || "Error in payment field").join(" ")
-                : "Please check your card details.";
-            showError(message);
-        }
+       function (errors) {
+    setLoading(false);
+
+    let errorDetails;
+
+    try {
+        errorDetails = JSON.stringify(errors);
+    } catch (e) {
+        errorDetails = String(errors);
+    }
+
+    trackPromoEvent("PAYMENT_TOKEN_FAILED", errorDetails);
+
+    const message = Array.isArray(errors)
+        ? errors.map(e => e.message || e.key || "Error in payment field").join(" ")
+        : "Please check your card details.";
+
+    showError(message);
+}
     );
 };
 </script>
