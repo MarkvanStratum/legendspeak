@@ -178,17 +178,43 @@
             </div>
 
             <div class="card">
-                <div class="label">
-                    Page 2 loaded
-                </div>
+    <div class="label">
+        Page 2 loaded
+    </div>
 
-                <div
-                    class="value"
-                    id="page2Loaded"
-                >
-                    0
-                </div>
-            </div>
+    <div
+        class="value"
+        id="page2Loaded"
+    >
+        0
+    </div>
+</div>
+
+<div class="card">
+    <div class="label">
+        Payment fields ready
+    </div>
+
+    <div
+        class="value"
+        id="paymentFieldsReady"
+    >
+        0
+    </div>
+</div>
+
+<div class="card">
+    <div class="label">
+        Payment init failed
+    </div>
+
+    <div
+        class="value"
+        id="paymentInitFailed"
+    >
+        0
+    </div>
+</div>
 
 <div class="card">
     <div class="label">
@@ -282,6 +308,26 @@
                 0%
             </strong>
         </div>
+
+<div class="percentage">
+    <span>
+        Page 2 → Payment fields ready
+    </span>
+
+    <strong id="page2ToPaymentFieldsReady">
+        0%
+    </strong>
+</div>
+
+<div class="percentage">
+    <span>
+        Page 2 → Payment init failed
+    </span>
+
+    <strong id="page2ToPaymentInitFailed">
+        0%
+    </strong>
+</div>
 
 <div class="percentage">
     <span>
@@ -506,12 +552,24 @@ async function loadFunnelResults() {
             data.checkoutCreated;
 
         document.getElementById(
-            "page2Loaded"
-        ).textContent =
-            data.page2Loaded;
+    "page2Loaded"
+).textContent =
+    data.page2Loaded;
+
+document.getElementById(
+    "paymentFieldsReady"
+).textContent =
+    data.paymentFieldsReady;
+
+document.getElementById(
+    "paymentInitFailed"
+).textContent =
+    data.paymentInitFailed;
 
 document.getElementById(
     "paymentButtonClicked"
+).textContent =
+    data.paymentButtonClicked;
 ).textContent =
     data.paymentButtonClicked;
 
@@ -555,6 +613,18 @@ document.getElementById(
             "%";
 
 document.getElementById(
+    "page2ToPaymentFieldsReady"
+).textContent =
+    data.page2ToPaymentFieldsReadyPercent +
+    "%";
+
+document.getElementById(
+    "page2ToPaymentInitFailed"
+).textContent =
+    data.page2ToPaymentInitFailedPercent +
+    "%";
+
+document.getElementById(
     "page2ToPaymentClick"
 ).textContent =
     data.page2ToPaymentClickPercent +
@@ -565,7 +635,6 @@ document.getElementById(
 ).textContent =
     data.paymentClickToTokenPercent +
     "%";
-
 document.getElementById(
     "paymentTokenFail"
 ).textContent =
