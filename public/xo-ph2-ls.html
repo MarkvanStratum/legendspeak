@@ -418,9 +418,35 @@ window.addEventListener("DOMContentLoaded", () => {
             "number_div",
             "cvv_div",
             function (paymentInstance) {
-                paymentReady = true;
-                paymentInstance.setNumberPlaceholder("Card number");
-                paymentInstance.setCvvPlaceholder("CVV");
+    paymentReady = true;
+
+    fetch("/api/promo-funnel-event", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            flowId:
+                sessionStorage.getItem("promo_flow_id") || "",
+            eventName:
+                "PAYMENT_FIELDS_READY",
+            pageUrl:
+                window.location.href,
+            affiliateRef:
+                new URLSearchParams(
+                    window.location.search
+                ).get("ref") || ""
+        }),
+        keepalive: true
+    }).catch(function (error) {
+        console.log(
+            "Payment-fields-ready tracking error:",
+            error
+        );
+    });
+
+    paymentInstance.setNumberPlaceholder("Card number");
+    paymentInstance.setCvvPlaceholder("CVV");
 
                 paymentInstance.setNumberStyle({
                     "font-size": "16px",
@@ -438,9 +464,61 @@ window.addEventListener("DOMContentLoaded", () => {
             }
         );
     } catch (error) {
-        showError(error?.message || "Could not load payment fields.");
-        payNow.disabled = true;
+
+    console.error(
+        "Xolvis initialization error:",
+        error
+    );
+
+    let errorDetails = "";
+
+    try {
+        errorDetails =
+            error?.message ||
+            JSON.stringify(error) ||
+            String(error);
+    } catch {
+        errorDetails =
+            String(
+                error ||
+                "Unknown initialization error"
+            );
     }
+
+    fetch("/api/promo-funnel-event", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            flowId:
+                sessionStorage.getItem("promo_flow_id") || "",
+            eventName:
+                "PAYMENT_INIT_FAILED",
+            pageUrl:
+                window.location.href,
+            affiliateRef:
+                new URLSearchParams(
+                    window.location.search
+                ).get("ref") || "",
+            eventDetails:
+                errorDetails
+        }),
+        keepalive: true
+    }).catch(function (trackingError) {
+        console.log(
+            "Payment-init-failed tracking error:",
+            trackingError
+        );
+    });
+
+    showError(
+        error?.message ||
+        "Could not load payment fields."
+    );
+
+    payNow.disabled = true;
+}
 });
 
 backBtn.onclick = () => { window.history.back(); };
