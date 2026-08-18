@@ -631,6 +631,37 @@ await pool.query(`
 console.log("✅ Xolvis payments table ready");
 
 // --------------------------------------------
+// PROMO FUNNEL TRACKING
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS promo_funnel_events (
+    id BIGSERIAL PRIMARY KEY,
+    flow_id TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    page_url TEXT,
+    affiliate_ref TEXT,
+    user_agent TEXT,
+    ip TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(flow_id, event_name)
+  );
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_promo_funnel_event_name
+  ON promo_funnel_events(event_name);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_promo_funnel_created_at
+  ON promo_funnel_events(created_at);
+`);
+
+console.log("✅ Promo funnel tracking ready");
+
+// --------------------------------------------
 // CARD PAYMENT ATTEMPTS TABLE
 // --------------------------------------------
 
@@ -1241,6 +1272,88 @@ window.XOLVIS_PUBLIC_INTEGRATION_KEY =
     );
 
     res.status(500).send("Server error");
+  }
+});
+
+// --------------------------------------------
+// PROMO FUNNEL EVENT
+// --------------------------------------------
+
+app.post("/api/promo-funnel-event", async (req, res) => {
+  try {
+    const {
+      flowId,
+      eventName,
+      pageUrl,
+      affiliateRef
+    } = req.body || {};
+
+    const cleanFlowId =
+      String(flowId || "").trim();
+
+    const cleanEventName =
+      String(eventName || "").trim();
+
+    if (!cleanFlowId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing flow ID"
+      });
+    }
+
+    const allowedEvents = [
+      "PAGE1_LOADED",
+      "PAGE1_BUTTON_CLICKED",
+      "CHECKOUT_LINK_CREATED",
+      "PAGE2_LOADED"
+    ];
+
+    if (!allowedEvents.includes(cleanEventName)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid funnel event"
+      });
+    }
+
+    await pool.query(
+      `
+      INSERT INTO promo_funnel_events
+      (
+        flow_id,
+        event_name,
+        page_url,
+        affiliate_ref,
+        user_agent,
+        ip
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+
+      ON CONFLICT (flow_id, event_name)
+      DO NOTHING
+      `,
+      [
+        cleanFlowId,
+        cleanEventName,
+        pageUrl || null,
+        affiliateRef || null,
+        req.headers["user-agent"] || "",
+        req.ip || null
+      ]
+    );
+
+    return res.json({
+      ok: true
+    });
+
+  } catch (err) {
+    console.error(
+      "PROMO FUNNEL EVENT ERROR:",
+      err
+    );
+
+    return res.status(500).json({
+      ok: false
+    });
   }
 });
 
@@ -2336,6 +2449,120 @@ app.get(
       return res.status(500).json({
         success: false,
         error: "Could not load chargebacks"
+      });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN PROMO FUNNEL SUMMARY
+// --------------------------------------------
+
+app.get(
+  "/api/admin/promo-funnel-summary",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (
+            WHERE event_name = 'PAGE1_LOADED'
+          ) AS page1_loaded,
+
+          COUNT(*) FILTER (
+            WHERE event_name = 'PAGE1_BUTTON_CLICKED'
+          ) AS page1_button_clicked,
+
+          COUNT(*) FILTER (
+            WHERE event_name = 'CHECKOUT_LINK_CREATED'
+          ) AS checkout_link_created,
+
+          COUNT(*) FILTER (
+            WHERE event_name = 'PAGE2_LOADED'
+          ) AS page2_loaded
+
+        FROM promo_funnel_events
+
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+      `);
+
+      const row = result.rows[0];
+
+      const page1Loaded =
+        Number(row.page1_loaded || 0);
+
+      const buttonClicked =
+        Number(row.page1_button_clicked || 0);
+
+      const checkoutCreated =
+        Number(row.checkout_link_created || 0);
+
+      const page2Loaded =
+        Number(row.page2_loaded || 0);
+
+      return res.json({
+        success: true,
+        period: "last_24_hours",
+
+        page1Loaded,
+        buttonClicked,
+        checkoutCreated,
+        page2Loaded,
+
+        page1ToClickPercent:
+          page1Loaded > 0
+            ? Number(
+                (
+                  buttonClicked /
+                  page1Loaded *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+
+        clickToCheckoutPercent:
+          buttonClicked > 0
+            ? Number(
+                (
+                  checkoutCreated /
+                  buttonClicked *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+
+        checkoutToPage2Percent:
+          checkoutCreated > 0
+            ? Number(
+                (
+                  page2Loaded /
+                  checkoutCreated *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+
+        clickToPage2Percent:
+          buttonClicked > 0
+            ? Number(
+                (
+                  page2Loaded /
+                  buttonClicked *
+                  100
+                ).toFixed(2)
+              )
+            : 0
+      });
+
+    } catch (err) {
+      console.error(
+        "PROMO FUNNEL SUMMARY ERROR:",
+        err
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: "Could not load funnel summary"
       });
     }
   }
