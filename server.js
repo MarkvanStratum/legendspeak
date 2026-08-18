@@ -1307,6 +1307,8 @@ app.post("/api/promo-funnel-event", async (req, res) => {
   "CHECKOUT_LINK_CREATED",
   "PAGE2_LOADED",
   "PAYMENT_BUTTON_CLICKED",
+  "PAYMENT_TOKEN_CREATED",
+  "PAYMENT_TOKEN_FAILED",
   "XOLVIS_TRANSACTION_CREATED"
 ];
 
@@ -2539,9 +2541,16 @@ COUNT(*) FILTER (
 ) AS payment_button_clicked,
 
 COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_TOKEN_CREATED'
+) AS payment_token_created,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_TOKEN_FAILED'
+) AS payment_token_failed,
+
+COUNT(*) FILTER (
   WHERE event_name = 'XOLVIS_TRANSACTION_CREATED'
 ) AS xolvis_transaction_created
-
         FROM promo_funnel_events
 
         WHERE created_at >= NOW() - INTERVAL '24 hours'
@@ -2566,8 +2575,17 @@ const paymentButtonClicked =
     row.payment_button_clicked || 0
   );
 
-const xolvisTransactionCreated =
+const paymentTokenCreated =
   Number(
+    row.payment_token_created || 0
+  );
+
+const paymentTokenFailed =
+  Number(
+    row.payment_token_failed || 0
+  );
+
+const xolvisTransactionCreated =  Number(
     row.xolvis_transaction_created || 0
   );
 
@@ -2580,6 +2598,8 @@ buttonClicked,
 checkoutCreated,
 page2Loaded,
 paymentButtonClicked,
+paymentTokenCreated,
+paymentTokenFailed,
 xolvisTransactionCreated,
 
         page1ToClickPercent:
@@ -2632,6 +2652,39 @@ page2ToPaymentClickPercent:
         (
           paymentButtonClicked /
           page2Loaded *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+paymentClickToTokenPercent:
+  paymentButtonClicked > 0
+    ? Number(
+        (
+          paymentTokenCreated /
+          paymentButtonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+paymentTokenFailPercent:
+  paymentButtonClicked > 0
+    ? Number(
+        (
+          paymentTokenFailed /
+          paymentButtonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+tokenToXolvisPercent:
+  paymentTokenCreated > 0
+    ? Number(
+        (
+          xolvisTransactionCreated /
+          paymentTokenCreated *
           100
         ).toFixed(2)
       )
