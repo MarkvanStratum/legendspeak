@@ -1302,11 +1302,13 @@ app.post("/api/promo-funnel-event", async (req, res) => {
     }
 
     const allowedEvents = [
-      "PAGE1_LOADED",
-      "PAGE1_BUTTON_CLICKED",
-      "CHECKOUT_LINK_CREATED",
-      "PAGE2_LOADED"
-    ];
+  "PAGE1_LOADED",
+  "PAGE1_BUTTON_CLICKED",
+  "CHECKOUT_LINK_CREATED",
+  "PAGE2_LOADED",
+  "PAYMENT_BUTTON_CLICKED",
+  "XOLVIS_TRANSACTION_CREATED"
+];
 
     if (!allowedEvents.includes(cleanEventName)) {
       return res.status(400).json({
@@ -1491,6 +1493,7 @@ app.post("/api/create-promo-payment", async (req, res) => {
   cardholderName,
   transactionToken,
   cardData,
+  flowId,
   clickid,
   affiliate_source
 } = req.body || {};
@@ -2010,6 +2013,56 @@ if (
   });
 }
 
+
+// --------------------------------------------
+// FUNNEL: XOLVIS TRANSACTION CREATED
+// --------------------------------------------
+
+const cleanFlowId =
+  String(flowId || "").trim();
+
+if (cleanFlowId) {
+  try {
+    await pool.query(
+      `
+      INSERT INTO promo_funnel_events
+      (
+        flow_id,
+        event_name,
+        page_url,
+        affiliate_ref,
+        user_agent,
+        ip
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+
+      ON CONFLICT (flow_id, event_name)
+      DO NOTHING
+      `,
+      [
+  cleanFlowId,
+  "XOLVIS_TRANSACTION_CREATED",
+  null,
+  affiliateSource || null,
+  req.headers["user-agent"] || "",
+  req.ip || null
+]
+    );
+
+    console.log(
+      "FUNNEL EVENT: XOLVIS_TRANSACTION_CREATED",
+      cleanFlowId
+    );
+
+  } catch (funnelError) {
+    console.error(
+      "XOLVIS FUNNEL TRACKING ERROR:",
+      funnelError
+    );
+  }
+}
+
+
 res.json({
   ...data,
   amount: amount.toFixed(2),
@@ -2466,20 +2519,28 @@ app.get(
       const result = await pool.query(`
         SELECT
           COUNT(*) FILTER (
-            WHERE event_name = 'PAGE1_LOADED'
-          ) AS page1_loaded,
+  WHERE event_name = 'PAGE1_LOADED'
+) AS page1_loaded,
 
-          COUNT(*) FILTER (
-            WHERE event_name = 'PAGE1_BUTTON_CLICKED'
-          ) AS page1_button_clicked,
+COUNT(*) FILTER (
+  WHERE event_name = 'PAGE1_BUTTON_CLICKED'
+) AS page1_button_clicked,
 
-          COUNT(*) FILTER (
-            WHERE event_name = 'CHECKOUT_LINK_CREATED'
-          ) AS checkout_link_created,
+COUNT(*) FILTER (
+  WHERE event_name = 'CHECKOUT_LINK_CREATED'
+) AS checkout_link_created,
 
-          COUNT(*) FILTER (
-            WHERE event_name = 'PAGE2_LOADED'
-          ) AS page2_loaded
+COUNT(*) FILTER (
+  WHERE event_name = 'PAGE2_LOADED'
+) AS page2_loaded,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_BUTTON_CLICKED'
+) AS payment_button_clicked,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'XOLVIS_TRANSACTION_CREATED'
+) AS xolvis_transaction_created
 
         FROM promo_funnel_events
 
@@ -2500,14 +2561,26 @@ app.get(
       const page2Loaded =
         Number(row.page2_loaded || 0);
 
+const paymentButtonClicked =
+  Number(
+    row.payment_button_clicked || 0
+  );
+
+const xolvisTransactionCreated =
+  Number(
+    row.xolvis_transaction_created || 0
+  );
+
       return res.json({
         success: true,
         period: "last_24_hours",
 
         page1Loaded,
-        buttonClicked,
-        checkoutCreated,
-        page2Loaded,
+buttonClicked,
+checkoutCreated,
+page2Loaded,
+paymentButtonClicked,
+xolvisTransactionCreated,
 
         page1ToClickPercent:
           page1Loaded > 0
@@ -2543,16 +2616,38 @@ app.get(
             : 0,
 
         clickToPage2Percent:
-          buttonClicked > 0
-            ? Number(
-                (
-                  page2Loaded /
-                  buttonClicked *
-                  100
-                ).toFixed(2)
-              )
-            : 0
-      });
+  buttonClicked > 0
+    ? Number(
+        (
+          page2Loaded /
+          buttonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+page2ToPaymentClickPercent:
+  page2Loaded > 0
+    ? Number(
+        (
+          paymentButtonClicked /
+          page2Loaded *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+paymentClickToXolvisPercent:
+  paymentButtonClicked > 0
+    ? Number(
+        (
+          xolvisTransactionCreated /
+          paymentButtonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0
+});
 
     } catch (err) {
       console.error(
