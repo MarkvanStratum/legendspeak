@@ -650,6 +650,11 @@ await pool.query(`
 `);
 
 await pool.query(`
+  ALTER TABLE promo_funnel_events
+  ADD COLUMN IF NOT EXISTS event_details TEXT;
+`);
+
+await pool.query(`
   CREATE INDEX IF NOT EXISTS idx_promo_funnel_event_name
   ON promo_funnel_events(event_name);
 `);
@@ -1282,11 +1287,12 @@ window.XOLVIS_PUBLIC_INTEGRATION_KEY =
 app.post("/api/promo-funnel-event", async (req, res) => {
   try {
     const {
-      flowId,
-      eventName,
-      pageUrl,
-      affiliateRef
-    } = req.body || {};
+  flowId,
+  eventName,
+  pageUrl,
+  affiliateRef,
+  eventDetails
+} = req.body || {};
 
     const cleanFlowId =
       String(flowId || "").trim();
@@ -1319,31 +1325,44 @@ app.post("/api/promo-funnel-event", async (req, res) => {
       });
     }
 
-    await pool.query(
-      `
-      INSERT INTO promo_funnel_events
-      (
-        flow_id,
-        event_name,
-        page_url,
-        affiliate_ref,
-        user_agent,
-        ip
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)
+    const cleanEventDetails =
+  String(eventDetails || "")
+    .slice(0, 5000);
 
-      ON CONFLICT (flow_id, event_name)
-      DO NOTHING
-      `,
-      [
-        cleanFlowId,
-        cleanEventName,
-        pageUrl || null,
-        affiliateRef || null,
-        req.headers["user-agent"] || "",
-        req.ip || null
-      ]
-    );
+await pool.query(
+  `
+  INSERT INTO promo_funnel_events
+  (
+    flow_id,
+    event_name,
+    page_url,
+    affiliate_ref,
+    user_agent,
+    ip,
+    event_details
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
+
+  ON CONFLICT (flow_id, event_name)
+  DO UPDATE SET
+    event_details =
+      CASE
+        WHEN EXCLUDED.event_details IS NOT NULL
+             AND EXCLUDED.event_details <> ''
+        THEN EXCLUDED.event_details
+        ELSE promo_funnel_events.event_details
+      END
+  `,
+  [
+    cleanFlowId,
+    cleanEventName,
+    pageUrl || null,
+    affiliateRef || null,
+    req.headers["user-agent"] || "",
+    req.ip || null,
+    cleanEventDetails || null
+  ]
+);
 
     return res.json({
       ok: true
@@ -2585,9 +2604,38 @@ const paymentTokenFailed =
     row.payment_token_failed || 0
   );
 
-const xolvisTransactionCreated =  Number(
+const xolvisTransactionCreated =
+  Number(
     row.xolvis_transaction_created || 0
   );
+
+const tokenFailureResult =
+  await pool.query(`
+    SELECT
+      created_at,
+      flow_id,
+      affiliate_ref,
+      event_details,
+      user_agent,
+      page_url
+    FROM promo_funnel_events
+    WHERE event_name = 'PAYMENT_TOKEN_FAILED'
+      AND created_at >= NOW() - INTERVAL '24 hours'
+    ORDER BY created_at DESC
+    LIMIT 100
+  `);
+
+const tokenFailures =
+  tokenFailureResult.rows.map(row => ({
+    createdAt: row.created_at,
+    flowId: row.flow_id,
+    affiliateRef: row.affiliate_ref || "",
+    details:
+      row.event_details ||
+      "No error details received",
+    userAgent: row.user_agent || "",
+    pageUrl: row.page_url || ""
+  }));
 
       return res.json({
         success: true,
@@ -2601,6 +2649,7 @@ paymentButtonClicked,
 paymentTokenCreated,
 paymentTokenFailed,
 xolvisTransactionCreated,
+tokenFailures,
 
         page1ToClickPercent:
           page1Loaded > 0
