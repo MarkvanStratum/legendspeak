@@ -1312,6 +1312,8 @@ app.post("/api/promo-funnel-event", async (req, res) => {
   "PAGE1_BUTTON_CLICKED",
   "CHECKOUT_LINK_CREATED",
   "PAGE2_LOADED",
+  "PAYMENT_FIELDS_READY",
+  "PAYMENT_INIT_FAILED",
   "PAYMENT_BUTTON_CLICKED",
   "PAYMENT_TOKEN_CREATED",
   "PAYMENT_TOKEN_FAILED",
@@ -2556,13 +2558,20 @@ COUNT(*) FILTER (
 ) AS page2_loaded,
 
 COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_FIELDS_READY'
+) AS payment_fields_ready,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_INIT_FAILED'
+) AS payment_init_failed,
+
+COUNT(*) FILTER (
   WHERE event_name = 'PAYMENT_BUTTON_CLICKED'
 ) AS payment_button_clicked,
 
 COUNT(*) FILTER (
   WHERE event_name = 'PAYMENT_TOKEN_CREATED'
 ) AS payment_token_created,
-
 COUNT(*) FILTER (
   WHERE event_name = 'PAYMENT_TOKEN_FAILED'
 ) AS payment_token_failed,
@@ -2587,7 +2596,17 @@ COUNT(*) FILTER (
         Number(row.checkout_link_created || 0);
 
       const page2Loaded =
-        Number(row.page2_loaded || 0);
+  Number(row.page2_loaded || 0);
+
+const paymentFieldsReady =
+  Number(
+    row.payment_fields_ready || 0
+  );
+
+const paymentInitFailed =
+  Number(
+    row.payment_init_failed || 0
+  );
 
 const paymentButtonClicked =
   Number(
@@ -2637,6 +2656,35 @@ const tokenFailures =
     pageUrl: row.page_url || ""
   }));
 
+const paymentInitFailureResult =
+  await pool.query(`
+    SELECT
+      created_at,
+      flow_id,
+      affiliate_ref,
+      event_details,
+      user_agent,
+      page_url
+    FROM promo_funnel_events
+    WHERE event_name = 'PAYMENT_INIT_FAILED'
+      AND created_at >= NOW() - INTERVAL '24 hours'
+    ORDER BY created_at DESC
+    LIMIT 100
+  `);
+
+const paymentInitFailures =
+  paymentInitFailureResult.rows.map(row => ({
+    createdAt: row.created_at,
+    flowId: row.flow_id,
+    affiliateRef: row.affiliate_ref || "",
+    details:
+      row.event_details ||
+      "No error details received",
+    userAgent: row.user_agent || "",
+    pageUrl: row.page_url || ""
+  }));
+
+      return res.json({
       return res.json({
         success: true,
         period: "last_24_hours",
@@ -2645,11 +2693,14 @@ const tokenFailures =
 buttonClicked,
 checkoutCreated,
 page2Loaded,
+paymentFieldsReady,
+paymentInitFailed,
 paymentButtonClicked,
 paymentTokenCreated,
 paymentTokenFailed,
 xolvisTransactionCreated,
 tokenFailures,
+paymentInitFailures,
 
         page1ToClickPercent:
           page1Loaded > 0
@@ -2695,6 +2746,28 @@ tokenFailures,
       )
     : 0,
 
+page2ToPaymentFieldsReadyPercent:
+  page2Loaded > 0
+    ? Number(
+        (
+          paymentFieldsReady /
+          page2Loaded *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+page2ToPaymentInitFailedPercent:
+  page2Loaded > 0
+    ? Number(
+        (
+          paymentInitFailed /
+          page2Loaded *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
 page2ToPaymentClickPercent:
   page2Loaded > 0
     ? Number(
@@ -2706,8 +2779,7 @@ page2ToPaymentClickPercent:
       )
     : 0,
 
-paymentClickToTokenPercent:
-  paymentButtonClicked > 0
+paymentClickToTokenPercent:  paymentButtonClicked > 0
     ? Number(
         (
           paymentTokenCreated /
