@@ -670,5 +670,74 @@ payNow.onclick = () => {
         }
     );
 };
-</script></body>
+</script>
+
+<script>
+(function () {
+
+    let promoFlowId =
+        sessionStorage.getItem(
+            "promo_flow_id"
+        );
+
+    if (!promoFlowId) {
+
+        if (
+            window.crypto &&
+            typeof window.crypto.randomUUID === "function"
+        ) {
+            promoFlowId =
+                window.crypto.randomUUID();
+        } else {
+            promoFlowId =
+                Date.now().toString(36) +
+                Math.random().toString(36).slice(2);
+        }
+
+        sessionStorage.setItem(
+            "promo_flow_id",
+            promoFlowId
+        );
+    }
+
+    const params =
+        new URLSearchParams(
+            window.location.search
+        );
+
+    fetch(
+        "/api/promo-funnel-event",
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+                flowId: promoFlowId,
+                eventName:
+                    "PAGE2_LOADED",
+                pageUrl:
+                    window.location.href,
+                affiliateRef:
+                    params.get("ref") || ""
+            }),
+
+            keepalive: true
+        }
+    ).catch(function (error) {
+
+        console.log(
+            "Funnel tracking error:",
+            error
+        );
+
+    });
+
+})();
+</script>
+
+</body>
 </html>

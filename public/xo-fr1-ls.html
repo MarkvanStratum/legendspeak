@@ -203,6 +203,66 @@ if (!affiliateRef) {
     window.location.replace('https://www.legendspeak.net');
 }
 
+let promoFlowId =
+    sessionStorage.getItem("promo_flow_id");
+
+if (!promoFlowId) {
+
+    if (
+        window.crypto &&
+        typeof window.crypto.randomUUID === "function"
+    ) {
+        promoFlowId =
+            window.crypto.randomUUID();
+    } else {
+        promoFlowId =
+            Date.now().toString(36) +
+            Math.random().toString(36).slice(2);
+    }
+
+    sessionStorage.setItem(
+        "promo_flow_id",
+        promoFlowId
+    );
+}
+
+function trackPromoFunnelEvent(eventName) {
+
+    return fetch(
+        "/api/promo-funnel-event",
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+                flowId: promoFlowId,
+                eventName: eventName,
+                pageUrl:
+                    window.location.href,
+                affiliateRef:
+                    affiliateRef || ""
+            }),
+
+            keepalive: true
+        }
+    ).catch(function (error) {
+
+        console.log(
+            "Funnel tracking error:",
+            error
+        );
+
+    });
+}
+
+trackPromoFunnelEvent(
+    "PAGE1_LOADED"
+);
+
 window.addEventListener('DOMContentLoaded', () => {
 
 const qs = new URLSearchParams(location.search);
@@ -265,6 +325,11 @@ if (qs.get('sub10')) phoneNumber.value = d(qs.get('sub10')).replace(/[^\d]/g, ''
 
 // CONTINUE TO RANDOM PAYMENT URL
 nextBtn.onclick = async () => {
+
+  trackPromoFunnelEvent(
+    "PAGE1_BUTTON_CLICKED"
+  );
+
   nameInput.value = `${firstName.value} ${lastName.value}`.trim();
 
   if (!firstName.value || !lastName.value || !billingStreet.value || !billingPostcode.value || !billingCity.value || !emailInput.value || !phoneNumber.value) {
@@ -311,10 +376,14 @@ successUrl: "https://cudsr.bemobtrcks.com/go/40f5ab33-ff2e-46aa-88c8-8fab25a5f54
     const data = await response.json();
 
     if (!response.ok || !data.url) {
-      throw new Error(data.error || "Impossible de créer le lien de paiement sécurisé.");
-    }
+  throw new Error(data.error || "Impossible de créer le lien de paiement sécurisé.");
+}
 
-    let nextUrl =
+trackPromoFunnelEvent(
+  "CHECKOUT_LINK_CREATED"
+);
+
+let nextUrl =
   "https://www.legendspeak.net" +
   data.url +
   "?ref=" + encodeURIComponent(affiliateRef) +
