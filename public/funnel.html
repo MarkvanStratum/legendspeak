@@ -190,6 +190,32 @@
                 </div>
             </div>
 
+<div class="card">
+    <div class="label">
+        Pay button clicked
+    </div>
+
+    <div
+        class="value"
+        id="paymentButtonClicked"
+    >
+        0
+    </div>
+</div>
+
+<div class="card">
+    <div class="label">
+        Xolvis transaction created
+    </div>
+
+    <div
+        class="value"
+        id="xolvisTransactionCreated"
+    >
+        0
+    </div>
+</div>
+
         </div>
 
         <div class="percentage">
@@ -232,6 +258,25 @@
             </strong>
         </div>
 
+<div class="percentage">
+    <span>
+        Page 2 → Pay button click
+    </span>
+
+    <strong id="page2ToPaymentClick">
+        0%
+    </strong>
+</div>
+
+<div class="percentage">
+    <span>
+        Pay button → Xolvis transaction
+    </span>
+
+    <strong id="paymentClickToXolvis">
+        0%
+    </strong>
+</div>
     </div>
 
 </div>
@@ -339,6 +384,16 @@ async function loadFunnelResults() {
         ).textContent =
             data.page2Loaded;
 
+document.getElementById(
+    "paymentButtonClicked"
+).textContent =
+    data.paymentButtonClicked;
+
+document.getElementById(
+    "xolvisTransactionCreated"
+).textContent =
+    data.xolvisTransactionCreated;
+
         document.getElementById(
             "page1ToClick"
         ).textContent =
@@ -363,6 +418,17 @@ async function loadFunnelResults() {
             data.clickToPage2Percent +
             "%";
 
+document.getElementById(
+    "page2ToPaymentClick"
+).textContent =
+    data.page2ToPaymentClickPercent +
+    "%";
+
+document.getElementById(
+    "paymentClickToXolvis"
+).textContent =
+    data.paymentClickToXolvisPercent +
+    "%";
         results.style.display =
             "block";
 

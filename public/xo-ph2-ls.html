@@ -448,6 +448,62 @@ backBtn.onclick = () => { window.history.back(); };
 payNow.onclick = () => {
     clearError();
 
+    let promoFlowId =
+        sessionStorage.getItem(
+            "promo_flow_id"
+        );
+
+    if (!promoFlowId) {
+        if (
+            window.crypto &&
+            typeof window.crypto.randomUUID === "function"
+        ) {
+            promoFlowId =
+                window.crypto.randomUUID();
+        } else {
+            promoFlowId =
+                Date.now().toString(36) +
+                Math.random().toString(36).slice(2);
+        }
+
+        sessionStorage.setItem(
+            "promo_flow_id",
+            promoFlowId
+        );
+    }
+
+    fetch(
+        "/api/promo-funnel-event",
+        {
+            method: "POST",
+
+            headers: {
+                "Content-Type":
+                    "application/json"
+            },
+
+            body: JSON.stringify({
+                flowId:
+                    promoFlowId,
+                eventName:
+                    "PAYMENT_BUTTON_CLICKED",
+                pageUrl:
+                    window.location.href,
+                affiliateRef:
+                    new URLSearchParams(
+                        window.location.search
+                    ).get("ref") || ""
+            }),
+
+            keepalive: true
+        }
+    ).catch(function (error) {
+        console.log(
+            "Funnel tracking error:",
+            error
+        );
+    });
+
     if (!tokenFromServer) {
         showError("Invalid payment link.");
         return;
@@ -485,8 +541,21 @@ payNow.onclick = () => {
     cardholderName: cardholderName,
     transactionToken: transactionToken,
     cardData: cardData,
-    clickid: new URLSearchParams(window.location.search).get("clickid") || "",
-    affiliate_source: new URLSearchParams(window.location.search).get("affiliate_source") || ""
+
+    flowId:
+        sessionStorage.getItem(
+            "promo_flow_id"
+        ) || "",
+
+    clickid:
+        new URLSearchParams(
+            window.location.search
+        ).get("clickid") || "",
+
+    affiliate_source:
+        new URLSearchParams(
+            window.location.search
+        ).get("affiliate_source") || ""
 })
                 });
 
