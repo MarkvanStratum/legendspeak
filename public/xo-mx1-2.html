@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-MX">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -83,7 +83,7 @@
 </script>
 
 <div class="payment-card">
-    <div class="amount">171.00 MXN</div>
+    <div class="amount">$200 MXN</div>
     <div class="subtitle" id="checkout-subtitle">Pago Seguro</div>
 
     <div class="divider"></div>
@@ -106,7 +106,7 @@
     <div class="field-group">
         <label class="field-label" for="emailInput">Correo Electrónico</label>
         <div class="input-wrapper">
-            <input id="emailInput" type="email" placeholder="juan@ejemplo.com" required>
+            <input id="emailInput" type="email" placeholder="juan@ejemplo.mx" required>
         </div>
     </div>
 
@@ -195,7 +195,7 @@ window.addEventListener('DOMContentLoaded', () => {
                     lastName: lastName.value.trim(),
                     name: nameInput.value.trim(),
                     email: emailInput.value.trim(),
-                    country: "México",
+                    country: "Mexico",
                     ref: affiliateRef,
                     originalQueryString: sessionStorage.getItem("orig_qs") || "",
                     successUrl: "https://cudsr.bemobtrcks.com/go/40f5ab33-ff2e-46aa-88c8-8fab25a5f548"
