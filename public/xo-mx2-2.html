@@ -278,15 +278,16 @@ payNow.onclick = () => {
                     return;
                 }
 
-                const affiliateRef = params.get("ref") || "";
-                const sub1 = params.get("sub1") || "";
-                const sub2 = params.get("sub2") || "";
+                if (data.paymentResultUrl) {
+    window.location.href =
+        data.paymentResultUrl;
 
-                window.location.href =
-                    "https://cudsr.bemobtrcks.com/go/40f5ab33-ff2e-46aa-88c8-8fab25a5f548?" +
-                    "ref=" + encodeURIComponent(affiliateRef) +
-                    "&sub1=" + encodeURIComponent(sub1) +
-                    "&sub2=" + encodeURIComponent(sub2);
+    return;
+}
+
+throw new Error(
+    "No se pudo verificar el estado del pago."
+);
 
             } catch (error) {
                 console.error("Xolvis payment error:", error);
