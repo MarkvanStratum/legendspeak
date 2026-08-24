@@ -3176,6 +3176,77 @@ app.get("/api/payment-result-status", async (req, res) => {
 
     const payment = result.rows[0];
 
+const trackingResult = await pool.query(
+  `
+  SELECT original_query_string, affiliate_ref
+  FROM promo_checkout_links
+  WHERE email = (
+    SELECT email
+    FROM xolvis_payments
+    WHERE reference = $1
+    LIMIT 1
+  )
+  ORDER BY created_at DESC
+  LIMIT 1
+  `,
+  [reference]
+);
+
+const trackingCheckout =
+  trackingResult.rows[0] || {};
+
+const originalParameters =
+  new URLSearchParams(
+    trackingCheckout.original_query_string || ""
+  );
+
+const incomingSub1 =
+  originalParameters.get("sub1");
+
+const incomingSub2 =
+  originalParameters.get("sub2");
+
+function buildFailureRedirectUrl(baseUrl) {
+  if (!baseUrl) return "";
+
+  const urlObject =
+    new URL(baseUrl);
+
+  if (incomingSub1) {
+    urlObject.searchParams.set(
+      "sub3",
+      incomingSub1
+    );
+  }
+
+  if (incomingSub2) {
+    urlObject.searchParams.set(
+      "sub4",
+      incomingSub2
+    );
+  }
+
+  if (trackingCheckout.affiliate_ref) {
+    urlObject.searchParams.set(
+      "ref",
+      trackingCheckout.affiliate_ref
+    );
+  }
+
+  return urlObject.toString();
+}
+
+const finalCancelUrl =
+  buildFailureRedirectUrl(
+    process.env.XOLVIS_CANCEL_URL
+  );
+
+const finalErrorUrl =
+  buildFailureRedirectUrl(
+    process.env.XOLVIS_ERROR_URL ||
+    process.env.XOLVIS_CANCEL_URL
+  );
+
     const status =
       String(payment.status || "")
         .trim()
@@ -3232,9 +3303,8 @@ app.get("/api/payment-result-status", async (req, res) => {
         successful: false,
         resultType: "CANCEL",
         status: status,
-        redirectUrl:
-          process.env.XOLVIS_CANCEL_URL || ""
-      });
+redirectUrl:
+  finalCancelUrl      });
     }
 
     // --------------------------------------------
@@ -3256,7 +3326,7 @@ app.get("/api/payment-result-status", async (req, res) => {
         resultType: "ERROR",
         status: status,
         redirectUrl:
-          process.env.XOLVIS_ERROR_URL || ""
+  finalErrorUrl
       });
     }
 
