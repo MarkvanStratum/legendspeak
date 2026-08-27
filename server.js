@@ -16,6 +16,7 @@ import fs from "fs";
 import multer from "multer";
 import fetch from "node-fetch";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 
 
@@ -48,25 +49,6 @@ const r2Client = new S3Client({
 
 const R2_BUCKET = process.env.R2_BUCKET;
 
-async function testR2Connection() {
-  try {
-    await r2Client.send(
-      new PutObjectCommand({
-        Bucket: R2_BUCKET,
-        Key: "connection-test.txt",
-        Body: "LegendSpeak R2 connection is working.",
-        ContentType: "text/plain"
-      })
-    );
-
-    console.log("✅ R2 CONNECTION TEST SUCCESSFUL");
-  } catch (error) {
-    console.error("❌ R2 CONNECTION TEST FAILED:", error);
-  }
-}
-
-testR2Connection();
-
 async function sendEmail(to, subject, html, attachments = []) {
   if (!to) return;
 
@@ -89,80 +71,220 @@ async function sendEmail(to, subject, html, attachments = []) {
   console.log("EMAIL RESPONSE:", text);
 }
 
-function makeReceiptPdfBase64({ email, plan, amount }) {
-  const date = new Date().toLocaleDateString("en-US");
-  const invoiceNumber = "STH-" + Date.now();
-  const amountText = "£" + Number(amount).toFixed(2);
+// --------------------------------------------
+// RECEIPT HELPERS
+// --------------------------------------------
 
-  const lines = [
-    { text: "Legend Speak", size: 22, x: 72, y: 720 },
-    { text: "Official Payment Receipt", size: 16, x: 72, y: 690 },
-
-    { text: "Invoice Number: " + invoiceNumber, size: 11, x: 72, y: 640 },
-    { text: "Date: " + date, size: 11, x: 72, y: 620 },
-
-    { text: "Billed To:", size: 13, x: 72, y: 575 },
-    { text: email, size: 11, x: 72, y: 555 },
-
-    { text: "Company:", size: 13, x: 72, y: 510 },
-{ text: "RIDGWELL SERVICES LIMITED", size: 11, x: 72, y: 490 },
-{ text: "Company No: 16277582", size: 11, x: 72, y: 472 },
-{ text: "85 Great Portland Street", size: 11, x: 72, y: 454 },
-{ text: "First Floor", size: 11, x: 72, y: 436 },
-{ text: "London, W1W 7LT", size: 11, x: 72, y: 418 },
-
-    { text: "Description", size: 12, x: 72, y: 390 },
-    { text: "Plan", size: 12, x: 300, y: 390 },
-    { text: "Amount", size: 12, x: 450, y: 390 },
-
-    { text: "Legend Speak Access", size: 11, x: 72, y: 360 },
-    { text: plan, size: 11, x: 300, y: 360 },
-    { text: amountText, size: 11, x: 450, y: 360 },
-
-    { text: "Total Paid: " + amountText, size: 15, x: 360, y: 300 },
-
-    { text: "Payment Status: Paid", size: 12, x: 72, y: 250 },
-    { text: "Thank you for your offering.", size: 12, x: 72, y: 220 },
-    { text: "This receipt confirms your successful payment.", size: 10, x: 72, y: 200 }
-  ];
-
-  function escapePdfText(str) {
-    return String(str)
-      .replace(/\\/g, "\\\\")
-      .replace(/\(/g, "\\(")
-      .replace(/\)/g, "\\)");
+function getReceiptProductName(plan) {
+  if (plan === "2295") {
+    return "Speak to Heaven Scholar Access";
   }
 
-  const content = lines.map(line =>
-    `BT /F1 ${line.size} Tf ${line.x} ${line.y} Td (${escapePdfText(line.text)}) Tj ET`
-  ).join("\n");
+  if (plan === "2695") {
+    return "Speak to Heaven Full Archive Access";
+  }
 
-  const pdf =
-`%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length ${content.length} >>
-stream
-${content}
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-trailer
-<< /Root 1 0 R >>
-%%EOF`;
+  if (
+    plan === "3795" ||
+    plan === "lifetime"
+  ) {
+    return "Speak to Heaven 3 Month Full Access";
+  }
 
-  return Buffer.from(pdf).toString("base64");
+  return "Speak to Heaven Access";
 }
+
+function formatReceiptDate(date = new Date()) {
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+async function makeReceiptPdf({
+  receiptNumber,
+  customerName,
+  email,
+  productName,
+  amount,
+  paymentMethod,
+  reference
+}) {
+  const templatePath =
+    path.join(__dirname, "receipt-template.pdf");
+
+  const templateBytes =
+    fs.readFileSync(templatePath);
+
+  const pdfDoc =
+    await PDFDocument.load(templateBytes);
+
+  const page =
+    pdfDoc.getPages()[0];
+
+  const font =
+    await pdfDoc.embedFont(
+      StandardFonts.Helvetica
+    );
+
+  const boldFont =
+    await pdfDoc.embedFont(
+      StandardFonts.HelveticaBold
+    );
+
+  const darkText =
+    rgb(0.08, 0.18, 0.27);
+
+  const amountText =
+    "£" + Number(amount).toFixed(2);
+
+  const dateText =
+    formatReceiptDate(new Date());
+
+  const safeName =
+    customerName || "Customer";
+
+  const safePaymentMethod =
+    paymentMethod || "Credit Card";
+
+  page.drawText(
+    String(receiptNumber),
+    {
+      x: 72,
+      y: 565,
+      size: 9,
+      font: boldFont,
+      color: darkText
+    }
+  );
+
+  page.drawText(
+    dateText,
+    {
+      x: 200,
+      y: 565,
+      size: 9,
+      font,
+      color: darkText
+    }
+  );
+
+  page.drawText(
+    String(safeName).slice(0, 38),
+    {
+      x: 340,
+      y: 565,
+      size: 9,
+      font,
+      color: darkText
+    }
+  );
+
+  page.drawText(
+    String(productName).slice(0, 48),
+    {
+      x: 142,
+      y: 418,
+      size: 9,
+      font: boldFont,
+      color: darkText
+    }
+  );
+
+  page.drawText(
+    amountText,
+    {
+      x: 482,
+      y: 418,
+      size: 10,
+      font: boldFont,
+      color: darkText
+    }
+  );
+
+  page.drawText(
+    amountText,
+    {
+      x: 470,
+      y: 328,
+      size: 13,
+      font: boldFont,
+      color: rgb(1, 1, 1)
+    }
+  );
+
+  page.drawText(
+    String(safePaymentMethod).slice(0, 35),
+    {
+      x: 198,
+      y: 246,
+      size: 9,
+      font,
+      color: darkText
+    }
+  );
+
+  page.drawText(
+    String(reference).slice(0, 48),
+    {
+      x: 198,
+      y: 211,
+      size: 8.5,
+      font,
+      color: darkText
+    }
+  );
+
+  page.drawText(
+    String(email).slice(0, 48),
+    {
+      x: 198,
+      y: 176,
+      size: 8.5,
+      font,
+      color: darkText
+    }
+  );
+
+  const pdfBytes =
+    await pdfDoc.save();
+
+  return Buffer.from(pdfBytes);
+}
+
+async function uploadReceiptToR2({
+  pdfBuffer,
+  receiptNumber,
+  date = new Date()
+}) {
+  const year =
+    String(date.getFullYear());
+
+  const month =
+    String(date.getMonth() + 1)
+      .padStart(2, "0");
+
+  const key =
+    `receipts/${year}/${month}/${receiptNumber}.pdf`;
+
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: pdfBuffer,
+      ContentType: "application/pdf"
+    })
+  );
+
+  console.log(
+    "✅ RECEIPT UPLOADED TO R2:",
+    key
+  );
+
+  return key;
+}
+
 app.use(cors());
 
 // --------------------------------------------
@@ -3681,49 +3803,115 @@ if (
 );
 
     if (updateResult.rows.length === 0) {
-      console.error(
-        "User not found:",
-        payment.email
-      );
+  console.error(
+    "User not found:",
+    payment.email
+  );
+}
 
-      return res.json({
-        ok: true
-      });
-    }
+    // --------------------------------------------
+// RECEIPT PROCESS
+// Separate from website access
+// --------------------------------------------
 
-    const receiptPdf =
-      makeReceiptPdfBase64({
-        email: payment.email,
-        plan: accessPlan,
-        amount: payment.amount
-      });
+try {
 
-    await sendEmail(
-      payment.email,
-      "Your Legend Speak receipt",
-      `
-      <h2>Payment received</h2>
+  const productName =
+    getReceiptProductName(
+      payment.plan
+    );
 
-      <p>Thank you for your offering.</p>
+  const customerName =
+    [
+      data?.customer?.firstName,
+      data?.customer?.lastName
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    data?.returnData?.cardHolder ||
+    "Customer";
 
-      <p>
-      <strong>Plan:</strong>
-      ${accessPlan}
-      </p>
+  const rawPaymentMethod =
+    String(
+      data?.paymentMethod ||
+      "Credit Card"
+    );
 
-      <p>
+  const paymentMethod =
+    rawPaymentMethod.replace(
+      /^creditcard$/i,
+      "Credit Card"
+    );
+
+  const receiptNumber =
+    "STH-" +
+    String(payment.id)
+      .padStart(8, "0");
+
+  const receiptPdf =
+    await makeReceiptPdf({
+      receiptNumber,
+      customerName,
+      email: payment.email,
+      productName,
+      amount: payment.amount,
+      paymentMethod,
+      reference: payment.reference
+    });
+
+  await uploadReceiptToR2({
+    pdfBuffer: receiptPdf,
+    receiptNumber
+  });
+
+  await sendEmail(
+    payment.email,
+    "Your Speak to Heaven payment receipt",
+    `
+    <h2>Payment received</h2>
+
+    <p>
+      Thank you for your payment.
+    </p>
+
+    <p>
+      <strong>Product:</strong>
+      ${productName}
+    </p>
+
+    <p>
       <strong>Amount:</strong>
       £${Number(payment.amount).toFixed(2)}
-      </p>
-      `,
-      [
-        {
-          filename:
-            "speak-to-heaven-receipt.pdf",
-          content: receiptPdf
-        }
-      ]
-    );
+    </p>
+
+    <p>
+      Your payment receipt is attached.
+    </p>
+    `,
+    [
+      {
+        filename:
+          `${receiptNumber}.pdf`,
+        content:
+          receiptPdf.toString("base64")
+      }
+    ]
+  );
+
+  console.log(
+    "✅ RECEIPT PROCESS COMPLETED:",
+    receiptNumber
+  );
+
+} catch (receiptError) {
+
+  console.error(
+    "❌ RECEIPT PROCESS FAILED:",
+    receiptError
+  );
+
+}
 
     res.json({
       ok: true
@@ -3742,33 +3930,65 @@ if (
   }
 });
 app.get("/test-receipt-email", async (req, res) => {
-  const email = "markvanstratum67@gmail.com";
+  try {
 
-  const receiptPdf = makeReceiptPdfBase64({
-    email,
-    plan: "lifetime",
-    amount: 49.95
-  });
+    const email =
+      "markvanstratum67@gmail.com";
 
-  await sendEmail(
-    email,
-    "TEST Receipt",
-    "<h2>Thank you for your order with legendspeak.net</h2>" +
-"<p>We have received your payment successfully.</p>" +
-"<p>Your receipt is attached to this email as a PDF.</p>" +
-"<p><strong>Plan:</strong> Lifetime Access</p>" +
-"<p><strong>Amount paid:</strong> £49.95</p>",
-[
-      {
-        filename: "receipt.pdf",
-        content: receiptPdf
-      }
-    ]
-  );
+    const receiptNumber =
+      "STH-TEST-" + Date.now();
 
-  res.send("Test email sent");
+    const receiptPdf =
+      await makeReceiptPdf({
+        receiptNumber,
+        customerName: "Test Customer",
+        email,
+        productName:
+          "Speak to Heaven 3 Month Full Access",
+        amount: 37.95,
+        paymentMethod: "Credit Card",
+        reference:
+          "TEST-" + Date.now()
+      });
+
+    await uploadReceiptToR2({
+      pdfBuffer: receiptPdf,
+      receiptNumber
+    });
+
+    await sendEmail(
+      email,
+      "TEST Speak to Heaven Receipt",
+      `
+      <h2>Test receipt</h2>
+      <p>This is a test receipt.</p>
+      `,
+      [
+        {
+          filename:
+            `${receiptNumber}.pdf`,
+          content:
+            receiptPdf.toString("base64")
+        }
+      ]
+    );
+
+    res.send(
+      "Test receipt created, uploaded and emailed."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "TEST RECEIPT ERROR:",
+      error
+    );
+
+    res.status(500).send(
+      "Test receipt failed."
+    );
+  }
 });
-
 app.get("/", (req, res) => {
 	res.send(`
 <!DOCTYPE html>
