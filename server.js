@@ -1,6 +1,5 @@
 //--------------------------------------------
 //	SERVER.JS — BIBLICAL AI CHAT EDITION (WITH CHARMR CHAT LOGIC)
-//--------------------------------------------
 
 import express from "express";
 import cors from "cors";
@@ -16,6 +15,8 @@ import crypto from "crypto";
 import fs from "fs";
 import multer from "multer";
 import fetch from "node-fetch";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+
 
 
 
