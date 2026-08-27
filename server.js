@@ -248,7 +248,9 @@ async function makeReceiptPdf({
   );
 
   const pdfBytes =
-    await pdfDoc.save();
+    await pdfDoc.save({
+      useObjectStreams: false
+    });
 
   return Buffer.from(pdfBytes);
 }
