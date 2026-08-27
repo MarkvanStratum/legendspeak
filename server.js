@@ -148,76 +148,174 @@ async function makeReceiptPdf({
   const safePaymentMethod =
     paymentMethod || "Credit Card";
 
+
+  // --------------------------------------------
+  // COVER THE OLD UNDERSCORE PLACEHOLDERS
+  // --------------------------------------------
+
+  // Receipt number
+  page.drawRectangle({
+    x: 70,
+    y: 558,
+    width: 115,
+    height: 20,
+    color: rgb(1, 1, 1)
+  });
+
+  // Date
+  page.drawRectangle({
+    x: 195,
+    y: 558,
+    width: 95,
+    height: 20,
+    color: rgb(1, 1, 1)
+  });
+
+  // Customer
+  page.drawRectangle({
+    x: 335,
+    y: 558,
+    width: 165,
+    height: 20,
+    color: rgb(1, 1, 1)
+  });
+
+  // Product
+  page.drawRectangle({
+    x: 140,
+    y: 409,
+    width: 220,
+    height: 22,
+    color: rgb(1, 1, 1)
+  });
+
+  // Price
+  page.drawRectangle({
+    x: 430,
+    y: 409,
+    width: 85,
+    height: 22,
+    color: rgb(1, 1, 1)
+  });
+
+  // Total paid — restore dark background
+  page.drawRectangle({
+    x: 365,
+    y: 317,
+    width: 155,
+    height: 29,
+    color: rgb(0.055, 0.16, 0.24)
+  });
+
+  // Payment method
+  page.drawRectangle({
+    x: 195,
+    y: 237,
+    width: 180,
+    height: 21,
+    color: rgb(1, 1, 1)
+  });
+
+  // Transaction / reference
+  page.drawRectangle({
+    x: 195,
+    y: 202,
+    width: 235,
+    height: 21,
+    color: rgb(1, 1, 1)
+  });
+
+  // Customer email
+  page.drawRectangle({
+    x: 195,
+    y: 167,
+    width: 235,
+    height: 21,
+    color: rgb(1, 1, 1)
+  });
+
+
+  // --------------------------------------------
+  // WRITE THE RECEIPT INFORMATION
+  // --------------------------------------------
+
+  // RECEIPT NUMBER
   page.drawText(
     String(receiptNumber),
     {
-      x: 72,
-      y: 565,
+      x: 76,
+      y: 566,
       size: 9,
       font: boldFont,
       color: darkText
     }
   );
 
+  // DATE
   page.drawText(
     dateText,
     {
-      x: 200,
-      y: 565,
+      x: 201,
+      y: 566,
       size: 9,
       font,
       color: darkText
     }
   );
 
+  // CUSTOMER NAME
   page.drawText(
     String(safeName).slice(0, 38),
     {
-      x: 340,
-      y: 565,
+      x: 341,
+      y: 566,
       size: 9,
       font,
       color: darkText
     }
   );
 
+  // PRODUCT / SERVICE
   page.drawText(
     String(productName).slice(0, 48),
     {
-      x: 142,
-      y: 418,
+      x: 147,
+      y: 419,
       size: 9,
       font: boldFont,
       color: darkText
     }
   );
 
+  // PRICE
   page.drawText(
     amountText,
     {
-      x: 482,
-      y: 418,
+      x: 469,
+      y: 419,
       size: 10,
       font: boldFont,
       color: darkText
     }
   );
 
+  // TOTAL PAID
   page.drawText(
     amountText,
     {
-      x: 470,
-      y: 328,
+      x: 458,
+      y: 326,
       size: 13,
       font: boldFont,
       color: rgb(1, 1, 1)
     }
   );
 
+  // PAYMENT METHOD
   page.drawText(
     String(safePaymentMethod).slice(0, 35),
     {
-      x: 198,
+      x: 205,
       y: 246,
       size: 9,
       font,
@@ -225,10 +323,11 @@ async function makeReceiptPdf({
     }
   );
 
+  // TRANSACTION / REFERENCE
   page.drawText(
     String(reference).slice(0, 48),
     {
-      x: 198,
+      x: 205,
       y: 211,
       size: 8.5,
       font,
@@ -236,16 +335,18 @@ async function makeReceiptPdf({
     }
   );
 
+  // CUSTOMER EMAIL
   page.drawText(
     String(email).slice(0, 48),
     {
-      x: 198,
+      x: 205,
       y: 176,
       size: 8.5,
       font,
       color: darkText
     }
   );
+
 
   const pdfBytes =
     await pdfDoc.save({
