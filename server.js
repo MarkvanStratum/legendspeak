@@ -3811,7 +3811,10 @@ const isSuccessful =
 
     const payment = paymentResult.rows[0];
 
-    await pool.query(
+const wasAlreadyPaid =
+  payment.paid_at != null;
+
+await pool.query(
       `
       UPDATE xolvis_payments
       SET
@@ -3856,7 +3859,18 @@ await pool.query(
   });
 }
 
-    let accessPlan = "scholar";
+if (wasAlreadyPaid) {
+  console.log(
+    "XOLVIS WEBHOOK: Successful payment already processed, skipping duplicate:",
+    payment.reference
+  );
+
+  return res.json({
+    ok: true
+  });
+}
+
+let accessPlan = "scholar";
 let days = 30;
 
 if (payment.plan === "2695") {
