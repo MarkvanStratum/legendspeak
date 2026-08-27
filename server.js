@@ -2224,7 +2224,6 @@ app.post(
         if (
           cardBin &&
           lastFour &&
-          transactionDate &&
           Number.isFinite(amount)
         ) {
           const matchResult =
@@ -2287,16 +2286,6 @@ app.post(
                   COALESCE(p.amount, 0) - $3
                 ) < 0.01
 
-                AND DATE(
-                  COALESCE(
-                    p.paid_at,
-                    p.created_at
-                  )
-                ) BETWEEN
-                  ($4::date - INTERVAL '3 days')
-                  AND
-                  ($4::date + INTERVAL '3 days')
-
                 AND (
                   UPPER(
                     COALESCE(
@@ -2320,15 +2309,6 @@ app.post(
                 )
 
               ORDER BY
-                ABS(
-                  DATE(
-                    COALESCE(
-                      p.paid_at,
-                      p.created_at
-                    )
-                  ) - $4::date
-                ) ASC,
-
                 COALESCE(
                   p.paid_at,
                   p.created_at
@@ -2339,8 +2319,7 @@ app.post(
               [
                 cardBin,
                 lastFour,
-                amount,
-                transactionDate
+                amount
               ]
             );
 
@@ -2350,8 +2329,7 @@ app.post(
 
             matched++;
           }
-        }
-        const existing =
+        }        const existing =
           await pool.query(
             `
             SELECT id
