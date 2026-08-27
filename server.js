@@ -77,21 +77,21 @@ async function sendEmail(to, subject, html, attachments = []) {
 
 function getReceiptProductName(plan) {
   if (plan === "2295") {
-    return "Speak to Heaven Scholar Access";
+    return "Legend Speak Scholar Access";
   }
 
   if (plan === "2695") {
-    return "Speak to Heaven Full Archive Access";
+    return "Legend Speak Full Archive Access";
   }
 
   if (
     plan === "3795" ||
     plan === "lifetime"
   ) {
-    return "Speak to Heaven 3 Month Full Access";
+    return "Legend Speak 3 Month Full Access";
   }
 
-  return "Speak to Heaven Access";
+  return "Legend Speak Access";
 }
 
 function formatReceiptDate(date = new Date()) {
@@ -3970,7 +3970,7 @@ try {
 
   await sendEmail(
     payment.email,
-    "Your Speak to Heaven payment receipt",
+    "Your Legend Speak payment receipt",
     `
     <h2>Payment received</h2>
 
@@ -4047,7 +4047,7 @@ app.get("/test-receipt-email", async (req, res) => {
         customerName: "Test Customer",
         email,
         productName:
-          "Speak to Heaven 3 Month Full Access",
+          "Legend Speak 3 Month Full Access",
         amount: 37.95,
         paymentMethod: "Credit Card",
         reference:
@@ -4061,7 +4061,7 @@ app.get("/test-receipt-email", async (req, res) => {
 
     await sendEmail(
       email,
-      "TEST Speak to Heaven Receipt",
+      "TEST Legend Speak Receipt",
       `
       <h2>Test receipt</h2>
       <p>This is a test receipt.</p>
