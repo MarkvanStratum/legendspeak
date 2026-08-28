@@ -15,9 +15,14 @@ import crypto from "crypto";
 import fs from "fs";
 import multer from "multer";
 import fetch from "node-fetch";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  ListObjectsV2Command,
+  GetObjectCommand
+} from "@aws-sdk/client-s3";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-
+import archiver from "archiver";
 
 
 
@@ -3107,6 +3112,183 @@ paymentClickToXolvisPercent:
         success: false,
         error: "Could not load funnel summary"
       });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN DOWNLOAD ALL RECEIPTS
+// --------------------------------------------
+
+app.get(
+  "/api/admin/receipts/download-all",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+
+      const receiptObjects = [];
+
+      let continuationToken;
+
+      do {
+        const listResult =
+          await r2Client.send(
+            new ListObjectsV2Command({
+              Bucket: R2_BUCKET,
+              Prefix: "receipts/",
+              ContinuationToken:
+                continuationToken
+            })
+          );
+
+        if (
+          Array.isArray(listResult.Contents)
+        ) {
+          for (
+            const item
+            of listResult.Contents
+          ) {
+            if (
+              item.Key &&
+              item.Key
+                .toLowerCase()
+                .endsWith(".pdf")
+            ) {
+              receiptObjects.push(
+                item.Key
+              );
+            }
+          }
+        }
+
+        continuationToken =
+          listResult.IsTruncated
+            ? listResult.NextContinuationToken
+            : undefined;
+
+      } while (continuationToken);
+
+
+      if (receiptObjects.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "No receipt PDFs found"
+        });
+      }
+
+
+      const today =
+        new Date()
+          .toISOString()
+          .slice(0, 10);
+
+      res.setHeader(
+        "Content-Type",
+        "application/zip"
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="legendspeak-invoices-${today}.zip"`
+      );
+
+
+      const archive =
+        archiver(
+          "zip",
+          {
+            zlib: {
+              level: 9
+            }
+          }
+        );
+
+
+      archive.on(
+        "error",
+        error => {
+          console.error(
+            "RECEIPT ZIP ERROR:",
+            error
+          );
+
+          if (!res.headersSent) {
+            res.status(500).json({
+              success: false,
+              error:
+                "Could not create receipt ZIP"
+            });
+          } else {
+            res.destroy(error);
+          }
+        }
+      );
+
+
+      archive.pipe(res);
+
+
+      for (
+        const key
+        of receiptObjects
+      ) {
+
+        const objectResult =
+          await r2Client.send(
+            new GetObjectCommand({
+              Bucket: R2_BUCKET,
+              Key: key
+            })
+          );
+
+
+        if (!objectResult.Body) {
+          continue;
+        }
+
+
+        const zipFilename =
+          key.replace(
+            /^receipts\//,
+            ""
+          );
+
+
+        archive.append(
+          objectResult.Body,
+          {
+            name: zipFilename
+          }
+        );
+      }
+
+
+      await archive.finalize();
+
+
+      console.log(
+        "✅ ADMIN RECEIPT ZIP CREATED:",
+        receiptObjects.length,
+        "PDF files"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "ADMIN RECEIPT DOWNLOAD ERROR:",
+        error
+      );
+
+
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error:
+            "Could not download receipts"
+        });
+      } else {
+        res.destroy(error);
+      }
     }
   }
 );
