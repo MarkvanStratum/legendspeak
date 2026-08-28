@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Legend speak — Transaction Dashboard</title>
+  <title>Speak to Heaven — Transaction Dashboard</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -230,14 +230,13 @@
     <div id="dashboard" class="dashboard">
       <div class="header">
         <div>
-          <h1>Legend speak Transactions</h1>
+          <h1>Speak to Heaven Transactions</h1>
           <p>Latest payment attempts and gateway results.</p>
         </div>
         <div class="header-actions">
           <button id="refreshButton" class="primary-button">Refresh</button>
-<button id="downloadButton" class="secondary-button">Download CSV</button>
-<button id="downloadInvoicesButton" class="secondary-button">Download All Invoices</button>
-<button id="logoutButton" class="danger-button">Log out</button>
+          <button id="downloadButton" class="secondary-button">Download CSV</button>
+          <button id="logoutButton" class="danger-button">Log out</button>
         </div>
       </div>
 
@@ -485,7 +484,6 @@
 <div id="fraudView" class="view-hidden">
 
   <div class="chargeback-toolbar">
-
     <input
       id="fraudFileInput"
       type="file"
@@ -506,16 +504,14 @@
     >
       Refresh fraud
     </button>
-
   </div>
 
   <div
     id="fraudStatusLine"
     class="status-line"
   >
-    No fraud report uploaded yet.
+    No fraud file uploaded yet.
   </div>
-
 
   <div class="cards">
 
@@ -523,7 +519,6 @@
       <div class="card-label">
         Successful sales
       </div>
-
       <div
         id="fraudSuccessfulSales"
         class="card-value"
@@ -532,12 +527,10 @@
       </div>
     </div>
 
-
     <div class="card">
       <div class="card-label">
         Fraud cases
       </div>
-
       <div
         id="fraudCount"
         class="card-value"
@@ -546,12 +539,10 @@
       </div>
     </div>
 
-
     <div class="card">
       <div class="card-label">
         Fraud rate
       </div>
-
       <div
         id="fraudRate"
         class="card-value"
@@ -560,22 +551,19 @@
       </div>
     </div>
 
-
     <div class="card">
       <div class="card-label">
-        Fraud amount
+        Fraud amount (USD)
       </div>
-
       <div
         id="fraudAmount"
         class="card-value"
       >
-        £0.00
+        $0.00
       </div>
     </div>
 
   </div>
-
 
   <div class="chargeback-filters">
 
@@ -583,51 +571,40 @@
       <option value="card_bin">
         Rows: BIN
       </option>
-
       <option value="card_country">
         Rows: Country
       </option>
-
       <option value="affiliate_source">
         Rows: Affiliate
       </option>
-
       <option value="plan">
         Rows: Plan
       </option>
-
       <option value="card_type">
         Rows: Card type
       </option>
-
       <option value="fraud_type">
         Rows: Fraud type
       </option>
     </select>
 
-
     <select id="fraudSortBy">
       <option value="rate_desc">
         Sort: Fraud rate
       </option>
-
       <option value="fraud_desc">
         Sort: Fraud cases
       </option>
-
       <option value="amount_desc">
         Sort: Fraud amount
       </option>
-
       <option value="sales_desc">
         Sort: Successful sales
       </option>
-
       <option value="group_asc">
         Sort: Group name
       </option>
     </select>
-
 
     <select id="fraudCountryFilter">
       <option value="ALL">
@@ -635,13 +612,11 @@
       </option>
     </select>
 
-
     <select id="fraudAffiliateFilter">
       <option value="ALL">
         All affiliates
       </option>
     </select>
-
 
     <select id="fraudPlanFilter">
       <option value="ALL">
@@ -649,20 +624,17 @@
       </option>
     </select>
 
-
     <select id="fraudCardTypeFilter">
       <option value="ALL">
         All card types
       </option>
     </select>
 
-
     <select id="fraudTypeFilter">
       <option value="ALL">
         All fraud types
       </option>
     </select>
-
 
     <input
       id="fraudStartDate"
@@ -671,14 +643,12 @@
       aria-label="Fraud from date"
     />
 
-
     <input
       id="fraudEndDate"
       type="date"
       title="Fraud to date"
       aria-label="Fraud to date"
     />
-
 
     <button
       id="fraudClearFilters"
@@ -689,38 +659,33 @@
 
   </div>
 
-
   <div class="chargeback-note">
     Fraud rate is fraud-reported transactions divided by successful sales for the same selected traffic. BIN is the default row grouping.
   </div>
 
-
   <div class="table-wrap">
-
     <table>
-
       <thead>
         <tr>
           <th id="fraudGroupHeader">
             BIN
           </th>
-
           <th>
             Successful sales
           </th>
-
           <th>
             Fraud cases
           </th>
-
-          <th>
-            Fraud rate
-          </th>
-
+          <th
+  id="fraudRateHeader"
+  style="cursor:pointer; user-select:none;"
+  title="Click to sort by fraud rate"
+>
+  Fraud rate ▼
+</th>
           <th>
             Fraud amount
           </th>
-
           <th>
             Average fraud amount
           </th>
@@ -728,9 +693,7 @@
       </thead>
 
       <tbody id="fraudPivotBody"></tbody>
-
     </table>
-
 
     <div
       id="fraudEmptyState"
@@ -739,15 +702,12 @@
     >
       No fraud data matches the selected filters.
     </div>
-
   </div>
 
 </div>
 
     </div>
   </div>
-
-
 
   <script>    const API_URL = "/api/admin/transactions";
 const CHARGEBACKS_API_URL = "/api/admin/chargebacks";
@@ -756,13 +716,12 @@ const CHARGEBACK_UPLOAD_URL = "/api/admin/chargebacks/upload";
 const FRAUD_API_URL = "/api/admin/fraud";
 const FRAUD_UPLOAD_URL = "/api/admin/fraud/upload";
 
-const INVOICES_DOWNLOAD_URL = "/api/admin/receipts/download-all";
     let adminPassword = "";
     let allTransactions = [];
-let filteredTransactions = [];
+    let filteredTransactions = [];
 let allChargebacks = [];
 let allFraudReports = [];
-let refreshTimer = null;
+    let refreshTimer = null;
 
     const byId = id => document.getElementById(id);
     const loginPanel = byId("loginPanel");
@@ -771,9 +730,8 @@ let refreshTimer = null;
     const loginButton = byId("loginButton");
     const loginError = byId("loginError");
     const refreshButton = byId("refreshButton");
-const downloadButton = byId("downloadButton");
-const downloadInvoicesButton = byId("downloadInvoicesButton");
-const logoutButton = byId("logoutButton");
+    const downloadButton = byId("downloadButton");
+    const logoutButton = byId("logoutButton");
     const clearFiltersButton = byId("clearFiltersButton");
     const searchInput = byId("searchInput");
     const statusFilter = byId("statusFilter");
@@ -832,6 +790,7 @@ const cbClearFilters = byId("cbClearFilters");
 const cbGroupHeader = byId("cbGroupHeader");
 const chargebackPivotBody = byId("chargebackPivotBody");
 const chargebackEmptyState = byId("chargebackEmptyState");
+
 const fraudFileInput = byId("fraudFileInput");
 const uploadFraudButton = byId("uploadFraudButton");
 const refreshFraudButton = byId("refreshFraudButton");
@@ -857,9 +816,11 @@ const fraudEndDate = byId("fraudEndDate");
 const fraudClearFilters = byId("fraudClearFilters");
 
 const fraudGroupHeader = byId("fraudGroupHeader");
+const fraudRateHeader = byId("fraudRateHeader");
 const fraudPivotBody = byId("fraudPivotBody");
 const fraudEmptyState = byId("fraudEmptyState");
 
+let fraudRateSortDirection = "desc";
     function escapeHtml(value) {
       return String(value ?? "")
         .replace(/&/g, "&amp;")
@@ -1183,7 +1144,7 @@ function calculateVatIncluded(amount, vatRate) {
     combinedText.includes("AUTHENTICATION CANCELLED") ||
     combinedText.includes("AUTHENTICATION CANCELED") ||
 combinedText.includes("NOT AUTHENTICATED BECAUSE THE ISSUER IS REJECTING AUTHENTICATION") ||
-combinedText.includes("Transaction rejected because cardholder authentication unavailable") ||
+combinedText.includes("TRANSACTION REJECTED BECAUSE CARDHOLDER AUTHENTICATION UNAVAILABLE") ||
     combinedText.includes("CARDHOLDER CANCELLED") ||
 combinedText.includes("CARDHOLDER CANCELED") ||
 combinedText.includes("CANCELLED BY USER") ||
@@ -1416,87 +1377,16 @@ t.xolvis_uuid || ""
       URL.revokeObjectURL(url);
     }
 
-
-async function downloadAllInvoices() {
-  downloadInvoicesButton.disabled = true;
-  downloadInvoicesButton.textContent = "Preparing Invoices...";
-
-  try {
-    const response = await fetch(
-      INVOICES_DOWNLOAD_URL,
-      {
-        headers: {
-          "x-admin-password": adminPassword
-        },
-        cache: "no-store"
-      }
-    );
-
-    if (response.status === 401) {
-      throw new Error("Incorrect admin password");
-    }
-
-    if (!response.ok) {
-      let errorMessage = "Could not download invoices";
-
-      try {
-        const data = await response.json();
-
-        if (data.error) {
-          errorMessage = data.error;
-        }
-      } catch {}
-
-      throw new Error(errorMessage);
-    }
-
-    const blob = await response.blob();
-
-    const url =
-      URL.createObjectURL(blob);
-
-    const link =
-      document.createElement("a");
-
-    link.href = url;
-
-    link.download =
-      "legendspeak-invoices-" +
-      new Date()
-        .toISOString()
-        .slice(0, 10) +
-      ".zip";
-
-    document.body.appendChild(link);
-
-    link.click();
-    link.remove();
-
-    URL.revokeObjectURL(url);
-
-  } catch (error) {
-    alert(
-      "Invoice download failed: " +
-      error.message
-    );
-
-  } finally {
-    downloadInvoicesButton.disabled = false;
-    downloadInvoicesButton.textContent =
-      "Download All Invoices";
-  }
-}
-
-
 function showDashboardView(viewName) {
-  const showTransactions =
-    viewName === "transactions";
-
   const showChargebacks =
     viewName === "chargebacks";
 
   const showFraud =
     viewName === "fraud";
+
+  const showTransactions =
+    !showChargebacks &&
+    !showFraud;
 
   transactionsView.classList.toggle(
     "view-hidden",
@@ -1537,7 +1427,8 @@ function showDashboardView(viewName) {
   }
 }
 
-function fillSelect(  select,
+function fillSelect(
+  select,
   values,
   allLabel
 ) {
@@ -2126,18 +2017,18 @@ function renderChargebackReport() {
       }));
 
   const sort =
-    cbSortBy.value;
+    fraudSortBy.value;
 
   rows.sort(
     (a, b) => {
 
       if (
         sort ===
-        "chargebacks_desc"
+        "fraud_desc"
       ) {
         return (
-          b.chargebacks -
-          a.chargebacks
+          b.fraud -
+          a.fraud
         );
       }
 
@@ -2169,6 +2060,26 @@ function renderChargebackReport() {
           a.group.localeCompare(
             b.group
           )
+        );
+      }
+
+      if (
+        sort ===
+        "rate_click"
+      ) {
+        if (
+          fraudRateSortDirection ===
+          "asc"
+        ) {
+          return (
+            a.rate -
+            b.rate
+          );
+        }
+
+        return (
+          b.rate -
+          a.rate
         );
       }
 
@@ -2263,9 +2174,9 @@ function populateFraudFilters() {
 
   const fraudCountries =
     allFraudReports.map(
-      fraud =>
+      item =>
         String(
-          fraud.card_country || ""
+          item.card_country || ""
         )
           .trim()
           .toUpperCase()
@@ -2282,10 +2193,14 @@ function populateFraudFilters() {
   fillSelect(
     fraudAffiliateFilter,
     allTransactions
-      .map(t => t.affiliate_source)
+      .map(
+        transaction =>
+          transaction.affiliate_source
+      )
       .concat(
         allFraudReports.map(
-          f => f.affiliate_source
+          item =>
+            item.affiliate_source
         )
       ),
     "All affiliates"
@@ -2294,10 +2209,14 @@ function populateFraudFilters() {
   fillSelect(
     fraudPlanFilter,
     allTransactions
-      .map(t => t.plan)
+      .map(
+        transaction =>
+          transaction.plan
+      )
       .concat(
         allFraudReports.map(
-          f => f.plan
+          item =>
+            item.plan
         )
       ),
     "All plans"
@@ -2306,10 +2225,14 @@ function populateFraudFilters() {
   fillSelect(
     fraudCardTypeFilter,
     allTransactions
-      .map(t => t.card_type)
+      .map(
+        transaction =>
+          transaction.card_type
+      )
       .concat(
         allFraudReports.map(
-          f => f.card_type
+          item =>
+            item.card_type
         )
       ),
     "All card types"
@@ -2318,7 +2241,8 @@ function populateFraudFilters() {
   fillSelect(
     fraudTypeFilter,
     allFraudReports.map(
-      f => f.fraud_type
+      item =>
+        item.fraud_type
     ),
     "All fraud types"
   );
@@ -2399,7 +2323,8 @@ async function uploadFraudExcel() {
     file
   );
 
-  uploadFraudButton.disabled = true;
+  uploadFraudButton.disabled =
+    true;
 
   fraudStatusLine.textContent =
     "Uploading and matching fraud report...";
@@ -2429,11 +2354,11 @@ async function uploadFraudExcel() {
     ) {
       throw new Error(
         data.error ||
-        "Could not upload fraud report"
+        "Could not import fraud Excel report"
       );
     }
 
-    fraudStatusLine.textContent =
+    const resultText =
       "Upload complete: " +
       data.imported +
       " new, " +
@@ -2446,9 +2371,15 @@ async function uploadFraudExcel() {
       data.ignoredOtherMerchant +
       " other-merchant row(s) ignored.";
 
-    fraudFileInput.value = "";
+    fraudFileInput.value =
+      "";
 
-    await loadFraudReports(false);
+    await loadFraudReports(
+      false
+    );
+
+    fraudStatusLine.textContent =
+      resultText;
 
   } catch (error) {
     fraudStatusLine.textContent =
@@ -2508,7 +2439,9 @@ function dateInFraudRange(value) {
 }
 
 
-function passesCommonFraudFilters(item) {
+function passesCommonFraudFilters(
+  item
+) {
   const country =
     String(
       item.card_country || ""
@@ -2518,35 +2451,46 @@ function passesCommonFraudFilters(item) {
 
   const affiliate =
     String(
-      item.affiliate_source || ""
+      item.affiliate_source ||
+      ""
     ).trim();
 
   const plan =
     String(
-      item.plan || ""
+      item.plan ||
+      ""
     ).trim();
 
   const cardType =
     String(
-      item.card_type || ""
+      item.card_type ||
+      ""
     ).trim();
 
   return (
     (
-      fraudCountryFilter.value === "ALL" ||
-      country === fraudCountryFilter.value
+      fraudCountryFilter.value ===
+        "ALL" ||
+      country ===
+        fraudCountryFilter.value
     ) &&
     (
-      fraudAffiliateFilter.value === "ALL" ||
-      affiliate === fraudAffiliateFilter.value
+      fraudAffiliateFilter.value ===
+        "ALL" ||
+      affiliate ===
+        fraudAffiliateFilter.value
     ) &&
     (
-      fraudPlanFilter.value === "ALL" ||
-      plan === fraudPlanFilter.value
+      fraudPlanFilter.value ===
+        "ALL" ||
+      plan ===
+        fraudPlanFilter.value
     ) &&
     (
-      fraudCardTypeFilter.value === "ALL" ||
-      cardType === fraudCardTypeFilter.value
+      fraudCardTypeFilter.value ===
+        "ALL" ||
+      cardType ===
+        fraudCardTypeFilter.value
     )
   );
 }
@@ -2572,7 +2516,6 @@ function renderFraudReport() {
   const successfulSales =
     allTransactions.filter(
       transaction => {
-
         if (
           normalizeStatus(
             transaction
@@ -2597,11 +2540,10 @@ function renderFraudReport() {
 
   const fraudReports =
     allFraudReports.filter(
-      fraud => {
-
+      item => {
         if (
           !passesCommonFraudFilters(
-            fraud
+            item
           )
         ) {
           return false;
@@ -2609,17 +2551,20 @@ function renderFraudReport() {
 
         if (
           !dateInFraudRange(
-            fraud.transaction_date
+            item.transaction_date
           )
         ) {
           return false;
         }
 
         if (
-          fraudTypeFilter.value !== "ALL" &&
+          fraudTypeFilter.value !==
+            "ALL" &&
           String(
-            fraud.fraud_type || ""
-          ) !== fraudTypeFilter.value
+            item.fraud_type ||
+            ""
+          ) !==
+            fraudTypeFilter.value
         ) {
           return false;
         }
@@ -2630,11 +2575,11 @@ function renderFraudReport() {
 
   const totalFraudAmount =
     fraudReports.reduce(
-      (sum, fraud) =>
+      (sum, item) =>
         sum +
         (
           Number(
-            fraud.original_amount
+            item.fraud_amount_usd
           ) || 0
         ),
       0
@@ -2655,10 +2600,11 @@ function renderFraudReport() {
     fraudReports.length;
 
   fraudRate.textContent =
-    totalRate.toFixed(2) + "%";
+    totalRate.toFixed(2) +
+    "%";
 
   fraudAmount.textContent =
-    "£" +
+    "$" +
     totalFraudAmount.toFixed(2);
 
   const groups =
@@ -2681,19 +2627,20 @@ function renderFraudReport() {
   }
 
   if (
-    groupField === "fraud_type"
+    groupField ===
+    "fraud_type"
   ) {
     const denominator =
       successfulSales.length;
 
     for (
-      const fraud
+      const item
       of fraudReports
     ) {
       const group =
         ensure(
           groupValue(
-            fraud,
+            item,
             groupField
           )
         );
@@ -2702,7 +2649,7 @@ function renderFraudReport() {
 
       group.amount +=
         Number(
-          fraud.original_amount
+          item.fraud_amount_usd
         ) || 0;
 
       group.sales =
@@ -2710,6 +2657,7 @@ function renderFraudReport() {
     }
 
   } else {
+
     for (
       const sale
       of successfulSales
@@ -2723,13 +2671,13 @@ function renderFraudReport() {
     }
 
     for (
-      const fraud
+      const item
       of fraudReports
     ) {
       const group =
         ensure(
           groupValue(
-            fraud,
+            item,
             groupField
           )
         );
@@ -2738,36 +2686,38 @@ function renderFraudReport() {
 
       group.amount +=
         Number(
-          fraud.original_amount
+          item.fraud_amount_usd
         ) || 0;
     }
   }
 
   let rows =
     [...groups.values()]
-      .map(group => ({
-        ...group,
+      .map(
+        group => ({
+          ...group,
 
-        rate:
-          group.sales
-            ? (
-                group.fraud /
-                group.sales
-              ) * 100
-            : (
-                group.fraud
-                  ? Infinity
-                  : 0
-              ),
+          rate:
+            group.sales
+              ? (
+                  group.fraud /
+                  group.sales
+                ) * 100
+              : (
+                  group.fraud
+                    ? Infinity
+                    : 0
+                ),
 
-        avg:
-          group.fraud
-            ? (
-                group.amount /
-                group.fraud
-              )
-            : 0
-      }));
+          avg:
+            group.fraud
+              ? (
+                  group.amount /
+                  group.fraud
+                )
+              : 0
+        })
+      );
 
   const sort =
     fraudSortBy.value;
@@ -2838,13 +2788,16 @@ function renderFraudReport() {
 
   for (const item of rows) {
     const row =
-      document.createElement("tr");
+      document.createElement(
+        "tr"
+      );
 
     const rateText =
       Number.isFinite(
         item.rate
       )
-        ? item.rate.toFixed(2) + "%"
+        ? item.rate.toFixed(2) +
+          "%"
         : "No sales";
 
     row.innerHTML = `
@@ -2852,8 +2805,8 @@ function renderFraudReport() {
       <td>${escapeHtml(item.sales)}</td>
       <td>${escapeHtml(item.fraud)}</td>
       <td>${escapeHtml(rateText)}</td>
-      <td>${escapeHtml("£" + item.amount.toFixed(2))}</td>
-      <td>${escapeHtml("£" + item.avg.toFixed(2))}</td>
+      <td>${escapeHtml("$" + item.amount.toFixed(2))}</td>
+      <td>${escapeHtml("$" + item.avg.toFixed(2))}</td>
     `;
 
     fraudPivotBody.appendChild(
@@ -2892,8 +2845,7 @@ function clearFraudFilters() {
 }
 
 
-    function clearFilters() {
-      searchInput.value = "";
+    function clearFilters() {      searchInput.value = "";
 statusFilter.value = "ALL";
 planFilter.value = "ALL";
 countryFilter.value = "ALL";
@@ -2907,8 +2859,7 @@ applyFilters();
       adminPassword = "";
       allTransactions = [];
       filteredTransactions = [];
-      allChargebacks = [];
-      allFraudReports = [];
+allChargebacks = [];
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = null;
       passwordInput.value = "";
@@ -2931,10 +2882,9 @@ applyFilters();
     });
 
     refreshButton.addEventListener("click", () => loadTransactions(false));
-downloadButton.addEventListener("click", downloadCsv);
-downloadInvoicesButton.addEventListener("click", downloadAllInvoices);
-logoutButton.addEventListener("click", logout);
-clearFiltersButton.addEventListener("click", clearFilters);
+    downloadButton.addEventListener("click", downloadCsv);
+    logoutButton.addEventListener("click", logout);
+    clearFiltersButton.addEventListener("click", clearFilters);
     searchInput.addEventListener("input", applyFilters);
     statusFilter.addEventListener("change", applyFilters);
     planFilter.addEventListener("change", applyFilters);
@@ -2972,14 +2922,6 @@ chargebacksTabButton.addEventListener(
     )
 );
 
-fraudTabButton.addEventListener(
-  "click",
-  () =>
-    showDashboardView(
-      "fraud"
-    )
-);
-
 uploadChargebacksButton.addEventListener("click", () => {
   chargebackFileInput.click();
 });
@@ -2989,7 +2931,6 @@ chargebackFileInput.addEventListener("change", () => {
     uploadChargebackCsv();
   }
 });
-
 refreshChargebacksButton.addEventListener(
   "click",
   () =>
@@ -3019,6 +2960,16 @@ cbClearFilters.addEventListener(
   );
 });
 
+
+fraudTabButton.addEventListener(
+  "click",
+  () =>
+    showDashboardView(
+      "fraud"
+    )
+);
+
+
 uploadFraudButton.addEventListener(
   "click",
   () => {
@@ -3026,27 +2977,62 @@ uploadFraudButton.addEventListener(
   }
 );
 
+
 fraudFileInput.addEventListener(
   "change",
   () => {
     if (
-      fraudFileInput.files.length > 0
+      fraudFileInput.files.length >
+      0
     ) {
       uploadFraudExcel();
     }
   }
 );
 
+
 refreshFraudButton.addEventListener(
   "click",
   () =>
-    loadFraudReports(true)
+    loadFraudReports(
+      true
+    )
 );
+
 
 fraudClearFilters.addEventListener(
   "click",
   clearFraudFilters
 );
+
+
+fraudRateHeader.addEventListener(
+  "click",
+  () => {
+    if (
+      fraudRateSortDirection ===
+      "desc"
+    ) {
+      fraudRateSortDirection =
+        "asc";
+
+      fraudRateHeader.textContent =
+        "Fraud rate ▲";
+    } else {
+      fraudRateSortDirection =
+        "desc";
+
+      fraudRateHeader.textContent =
+        "Fraud rate ▼";
+    }
+
+    fraudSortBy.value =
+      "rate_click";
+
+    renderFraudReport();
+  }
+);
+
 
 [
   fraudGroupBy,
@@ -3065,6 +3051,5 @@ fraudClearFilters.addEventListener(
   );
 });
 
-  </script>
-</body>
+  </script></body>
 </html>
