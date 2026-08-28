@@ -1,5 +1,6 @@
 //--------------------------------------------
 //	SERVER.JS — BIBLICAL AI CHAT EDITION (WITH CHARMR CHAT LOGIC)
+//--------------------------------------------
 
 import express from "express";
 import cors from "cors";
@@ -21,7 +22,13 @@ import {
   ListObjectsV2Command,
   GetObjectCommand
 } from "@aws-sdk/client-s3";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb
+} from "pdf-lib";
+
 import archiver from "archiver";
 import ExcelJS from "exceljs";
 
@@ -40,9 +47,27 @@ const SECRET_KEY = process.env.SECRET_KEY || "supersecret";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 
-// --------------------------------------------
-// CLOUDFLARE R2 RECEIPT STORAGE
-// --------------------------------------------
+async function sendEmail(to, subject, html, attachments = []) {
+  if (!to) return;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: "Speak to Heaven <noreply@speaktoheaven.com>",
+      to,
+      subject,
+      html,
+      attachments
+    })
+  });
+
+  const text = await response.text();
+  console.log("EMAIL RESPONSE:", text);
+}
 
 const r2Client = new S3Client({
   region: "auto",
@@ -55,58 +80,38 @@ const r2Client = new S3Client({
 
 const R2_BUCKET = process.env.R2_BUCKET;
 
-async function sendEmail(to, subject, html, attachments = []) {
-  if (!to) return;
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      from: "Legend Speak <noreply@legendspeak.net>",
-      to,
-      subject,
-      html,
-      attachments
-    })
-  });
-
-  const text = await response.text();
-  console.log("EMAIL RESPONSE:", text);
-}
-
-// --------------------------------------------
-// RECEIPT HELPERS
-// --------------------------------------------
 
 function getReceiptProductName(plan) {
-  if (plan === "2295") {
-    return "Legend Speak Scholar Access";
+  if (plan === "2995") {
+    return "SpeakToHeaven.com God Access";
   }
 
-  if (plan === "2695") {
-    return "Legend Speak Full Archive Access";
+  if (plan === "3595") {
+    return "SpeakToHeaven.com Full Divine Access";
   }
 
   if (
-    plan === "3795" ||
+    plan === "4995" ||
     plan === "lifetime"
   ) {
-    return "Legend Speak 3 Month Full Access";
+    return "SpeakToHeaven.com 3 Month Full Access";
   }
 
-  return "Legend Speak Access";
+  return "SpeakToHeaven.com Access";
 }
 
-function formatReceiptDate(date = new Date()) {
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
-  });
+
+function formatReceiptDate(date) {
+  return new Intl.DateTimeFormat(
+    "en-GB",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    }
+  ).format(date);
 }
+
 
 async function makeReceiptPdf({
   receiptNumber,
@@ -154,12 +159,6 @@ async function makeReceiptPdf({
   const safePaymentMethod =
     paymentMethod || "Credit Card";
 
-
-  // --------------------------------------------
-  // COVER THE OLD UNDERSCORE PLACEHOLDERS
-  // --------------------------------------------
-
-  // Receipt number
   page.drawRectangle({
     x: 70,
     y: 558,
@@ -168,7 +167,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-  // Date
   page.drawRectangle({
     x: 195,
     y: 558,
@@ -177,7 +175,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-  // Customer
   page.drawRectangle({
     x: 335,
     y: 558,
@@ -186,7 +183,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-  // Product
   page.drawRectangle({
     x: 140,
     y: 409,
@@ -195,7 +191,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-  // Price
   page.drawRectangle({
     x: 430,
     y: 409,
@@ -204,7 +199,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-  // Total paid — restore dark background
   page.drawRectangle({
     x: 365,
     y: 317,
@@ -213,7 +207,6 @@ async function makeReceiptPdf({
     color: rgb(0.055, 0.16, 0.24)
   });
 
-  // Payment method
   page.drawRectangle({
     x: 195,
     y: 237,
@@ -222,7 +215,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-  // Transaction / reference
   page.drawRectangle({
     x: 195,
     y: 202,
@@ -231,7 +223,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-  // Customer email
   page.drawRectangle({
     x: 195,
     y: 167,
@@ -240,12 +231,6 @@ async function makeReceiptPdf({
     color: rgb(1, 1, 1)
   });
 
-
-  // --------------------------------------------
-  // WRITE THE RECEIPT INFORMATION
-  // --------------------------------------------
-
-  // RECEIPT NUMBER
   page.drawText(
     String(receiptNumber),
     {
@@ -257,7 +242,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // DATE
   page.drawText(
     dateText,
     {
@@ -269,7 +253,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // CUSTOMER NAME
   page.drawText(
     String(safeName).slice(0, 38),
     {
@@ -281,7 +264,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // PRODUCT / SERVICE
   page.drawText(
     String(productName).slice(0, 48),
     {
@@ -293,7 +275,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // PRICE
   page.drawText(
     amountText,
     {
@@ -305,7 +286,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // TOTAL PAID
   page.drawText(
     amountText,
     {
@@ -317,7 +297,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // PAYMENT METHOD
   page.drawText(
     String(safePaymentMethod).slice(0, 35),
     {
@@ -329,7 +308,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // TRANSACTION / REFERENCE
   page.drawText(
     String(reference).slice(0, 48),
     {
@@ -341,7 +319,6 @@ async function makeReceiptPdf({
     }
   );
 
-  // CUSTOMER EMAIL
   page.drawText(
     String(email).slice(0, 48),
     {
@@ -353,7 +330,6 @@ async function makeReceiptPdf({
     }
   );
 
-
   const pdfBytes =
     await pdfDoc.save({
       useObjectStreams: false
@@ -361,6 +337,7 @@ async function makeReceiptPdf({
 
   return Buffer.from(pdfBytes);
 }
+
 
 async function uploadReceiptToR2({
   pdfBuffer,
@@ -392,9 +369,7 @@ async function uploadReceiptToR2({
   );
 
   return key;
-}
-
-app.use(cors());
+}app.use(cors());
 
 // --------------------------------------------
 // PROTECTED CHECKOUT HELPERS
@@ -578,6 +553,7 @@ function getChargebackCardParts(maskedCard) {
   };
 }
 
+
 function getFraudExcelCellValue(value) {
   if (value === null || value === undefined) {
     return "";
@@ -662,6 +638,8 @@ function normalizeFraudExcelDate(value) {
 }
 
 // JSON parser FIRST
+
+// JSON parser FIRST
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 function getXolvisAuthHeader() {
@@ -676,11 +654,11 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     const selectedPlan = fixedPlan || plan;
 
     const amounts = {
-  "2295": 22.95,
-  "2695": 26.95,
-  "3795": 37.95,
-  "lifetime": 37.95
-};
+      "2995": 29.95,
+      "3595": 35.95,
+      "4995": 49.95,
+      "lifetime": 49.95
+    };
 
     const amount = amounts[selectedPlan];
 
@@ -711,7 +689,7 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
           merchantTransactionId: reference,
           amount: amount.toFixed(2),
           currency: "GBP",
-          description: "Legend Speak Access",
+          description: "Speak to Heaven Access",
           successUrl: process.env.XOLVIS_SUCCESS_URL,
           cancelUrl: process.env.XOLVIS_CANCEL_URL,
           errorUrl: process.env.XOLVIS_ERROR_URL,
@@ -764,9 +742,9 @@ async function createXolvisPayment(req, res, fixedPlan = null) {
     res.status(500).json({ error: "Could not create Xolvis payment" });
   }
 }
-app.post("/api/create-landing-payment", authenticateToken, (req, res) => createXolvisPayment(req, res, "3795"));
-app.post("/api/create-au-payment-2695", authenticateToken, (req, res) => createXolvisPayment(req, res, "2695"));
-app.post("/api/create-payment-2295", authenticateToken, (req, res) => createXolvisPayment(req, res, "2295"));
+app.post("/api/create-landing-payment", authenticateToken, (req, res) => createXolvisPayment(req, res, "4995"));
+app.post("/api/create-au-payment-3595", authenticateToken, (req, res) => createXolvisPayment(req, res, "3595"));
+app.post("/api/create-payment-2995", authenticateToken, (req, res) => createXolvisPayment(req, res, "2995"));
 app.get("/api/xolvis-public-key", (req, res) => {
   res.json({
     publicIntegrationKey: process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || ""
@@ -961,7 +939,6 @@ await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS card_bin TEXT;
 `);
-
 await pool.query(`
   ALTER TABLE xolvis_payments
   ADD COLUMN IF NOT EXISTS card_type TEXT;
@@ -972,48 +949,7 @@ await pool.query(`
   ADD COLUMN IF NOT EXISTS last_four TEXT;
 `);
 
-await pool.query(`
-  ALTER TABLE xolvis_payments
-  ADD COLUMN IF NOT EXISTS final_redirect_url TEXT;
-`);
-
 console.log("✅ Xolvis payments table ready");
-
-// --------------------------------------------
-// PROMO FUNNEL TRACKING
-// --------------------------------------------
-
-await pool.query(`
-  CREATE TABLE IF NOT EXISTS promo_funnel_events (
-    id BIGSERIAL PRIMARY KEY,
-    flow_id TEXT NOT NULL,
-    event_name TEXT NOT NULL,
-    page_url TEXT,
-    affiliate_ref TEXT,
-    user_agent TEXT,
-    ip TEXT,
-    created_at TIMESTAMP DEFAULT NOW(),
-
-    UNIQUE(flow_id, event_name)
-  );
-`);
-
-await pool.query(`
-  ALTER TABLE promo_funnel_events
-  ADD COLUMN IF NOT EXISTS event_details TEXT;
-`);
-
-await pool.query(`
-  CREATE INDEX IF NOT EXISTS idx_promo_funnel_event_name
-  ON promo_funnel_events(event_name);
-`);
-
-await pool.query(`
-  CREATE INDEX IF NOT EXISTS idx_promo_funnel_created_at
-  ON promo_funnel_events(created_at);
-`);
-
-console.log("✅ Promo funnel tracking ready");
 
 // --------------------------------------------
 // CARD PAYMENT ATTEMPTS TABLE
@@ -1183,71 +1119,23 @@ console.log("✅ Card payment attempts table ready");
 //	BIBLICAL CHARACTER PROFILES
 //--------------------------------------------
 
-export const historicalProfiles = [
-  {
-    id: 1,
-    name: "Albert Einstein",
-    description: "German-born theoretical physicist. Speak thoughtfully, curiously and intelligently. Discuss physics, philosophy, politics, education and life from Einstein's historically documented perspective."
-  },
-  {
-    id: 2,
-    name: "Julius Caesar",
-    description: "Roman general, statesman and author. Speak confidently and strategically. Discuss Roman politics, warfare, leadership, ambition and Caesar's military campaigns."
-  },
-  {
-    id: 3,
-    name: "Marie Curie",
-    description: "Polish-French physicist and chemist and pioneer of radioactivity. Speak intelligently, seriously and modestly, with a strong commitment to scientific research."
-  },
-  {
-    id: 4,
-    name: "Leonardo da Vinci",
-    description: "Italian Renaissance artist, engineer, anatomist and inventor. Speak with intense curiosity about art, science, nature, engineering and observation."
-  },
-  {
-    id: 5,
-    name: "Napoleon Bonaparte",
-    description: "French military commander and emperor. Speak decisively and strategically about warfare, government, law, leadership and ambition."
-  },
-  {
-    id: 6,
-    name: "Cleopatra",
-    description: "Queen of Ptolemaic Egypt. Speak as an educated and politically sophisticated monarch concerned with diplomacy, Egypt, Rome and power."
-  },
-  {
-    id: 7,
-    name: "Abraham Lincoln",
-    description: "Sixteenth president of the United States. Speak thoughtfully and plainly, with occasional dry humor. Discuss democracy, slavery, war, politics and leadership."
-  },
-  {
-    id: 8,
-    name: "Winston Churchill",
-    description: "British statesman, writer and prime minister. Speak forcefully and eloquently about politics, history, warfare, leadership and Britain."
-  },
-  {
-    id: 9,
-    name: "Nikola Tesla",
-    description: "Inventor and electrical engineer. Speak intensely and imaginatively about electricity, invention, engineering, energy and experimentation."
-  },
-  {
-    id: 10,
-    name: "Charles Darwin",
-    description: "English naturalist and developer of the theory of evolution by natural selection. Speak carefully and analytically about biology, nature and scientific evidence."
-  },
-  {
-    id: 11,
-    name: "Socrates",
-    description: "Classical Greek philosopher. Examine assumptions through questions and reason. Discuss knowledge, virtue, ethics and the examined life."
-  },
-  {
-    id: 12,
-    name: "William Shakespeare",
-    description: "English playwright and poet. Speak with wit and vivid language about theatre, human nature, love, power, tragedy, comedy and writing."
-  }
+export const biblicalProfiles = [
+	{ id: 1, name: "God", image: "/img/god.jpg", description: "Creator, Eternal, Almighty. Speak with profound authority, wisdom, and love. Use language that evokes awe and reverence." },
+	{ id: 2, name: "Jesus Christ", image: "/img/jesus.jpg", description: "Teacher, Savior, Son of God. Speak with compassion, using parables and teachings from the Gospels. Focus on love, redemption, and discipleship." },
+	{ id: 3, name: "Holy Spirit", image: "/img/holyspirit.jpg", description: "Comforter, Advocate, Helper. Speak gently, offering guidance, strength, and comfort. Reference the work of the Spirit in guiding believers." },
+	{ id: 4, name: "Mary", image: "/img/mary.jpg", description: "Mother of Jesus, blessed among women. Speak humbly, with grace and maternal love. Reference the joy and challenges of motherhood and faith." },
+	{ id: 5, name: "Moses", image: "/img/moses.jpg", description: "Prophet, leader of Israel. Speak firmly and righteously. Reference the Law, the Exodus, and the covenant with God." },
+	{ id: 11, name: "Eve", image: "/img/eve.jpg", description: "Mother of all living. Speak reflectively, with a sense of wonder and perhaps a touch of melancholy about the first sin. Focus on beginnings and human experience." },
+	{ id: 12, name: "King David", image: "/img/david.jpg", description: "Poet, warrior, king. Speak passionately, sometimes boastful, sometimes repentant, like the Psalms. Reference shepherd life, battles, and kingship." },
+	{ id: 14, name: "Isaiah", image: "/img/isaiah.jpg", description: "Major prophet. Speak with poetic vision, delivering messages of judgment and comfort, pointing toward the future Messiah." },
+	{ id: 17, name: "Daniel", image: "/img/daniel.jpg", description: "Interpreter of dreams. Speak with wisdom and clarity, referencing prophecy, unwavering faith, and life in exile." },
+	{ id: 24, name: "Apostle Peter", image: "/img/peter.jpg", description: "Bold apostle. Speak zealously and sometimes impulsively. Reference fishing, following Jesus, and the early Church." },
+	{ id: 25, name: "Apostle Paul", image: "/img/paul.jpg", description: "Teacher and missionary. Speak with theological depth, referencing the epistles, grace, and the Gentile mission." },
+	{ id: 26, name: "Apostle John", image: "/img/john.jpg", description: "Apostle of love. Speak with a focus on love, light, and fellowship. Reference the Gospel of John and the book of Revelation." }
 ];
 
 app.get("/api/profiles", (req, res) => {
-    res.json(historicalProfiles);
+	res.json(biblicalProfiles);
 });
 
 //--------------------------------------------
@@ -1284,7 +1172,7 @@ function canAccessCharacter(user, characterId) {
 
 	if (user.plan === "all") return true;
 
-	if (user.plan === "scholar" && characterId === 1) return true;
+	if (user.plan === "god" && characterId === 1) return true;
 
 	return false;
 }
@@ -1315,8 +1203,8 @@ const hashed = await bcrypt.hash(password, 10);
 
 await sendEmail(
   email,
-  "Your Legend Speak Account",
-  "<h2>Welcome to Legend Speak</h2>" +
+  "Your Speak to Heaven Account",
+  "<h2>Welcome to Speak to Heaven</h2>" +
   "<p>Your account has been created.</p>" +
   "<p><strong>Email:</strong> " + email + "</p>" +
   "<p><strong>Password:</strong> " + plainPassword + "</p>"
@@ -1390,8 +1278,7 @@ const fraudUpload = multer({
   }
 });
 
-app.post("/api/upload", authenticateToken, upload.single("file"), (req, res) => {
-	if (!req.file)
+app.post("/api/upload", authenticateToken, upload.single("file"), (req, res) => {	if (!req.file)
 		return res.status(400).json({ error: "No file uploaded" });
 
 	res.json({ url: `/uploads/${req.file.filename}` });
@@ -1713,108 +1600,6 @@ window.XOLVIS_PUBLIC_INTEGRATION_KEY =
 });
 
 // --------------------------------------------
-// PROMO FUNNEL EVENT
-// --------------------------------------------
-
-app.post("/api/promo-funnel-event", async (req, res) => {
-  try {
-    const {
-  flowId,
-  eventName,
-  pageUrl,
-  affiliateRef,
-  eventDetails
-} = req.body || {};
-
-    const cleanFlowId =
-      String(flowId || "").trim();
-
-    const cleanEventName =
-      String(eventName || "").trim();
-
-    if (!cleanFlowId) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing flow ID"
-      });
-    }
-
-    const allowedEvents = [
-  "PAGE1_LOADED",
-  "PAGE1_BUTTON_CLICKED",
-  "CHECKOUT_LINK_CREATED",
-  "PAGE2_LOADED",
-  "PAYMENT_FIELDS_READY",
-  "PAYMENT_INIT_FAILED",
-  "PAYMENT_BUTTON_CLICKED",
-  "PAYMENT_TOKEN_CREATED",
-  "PAYMENT_TOKEN_FAILED",
-  "XOLVIS_TRANSACTION_CREATED"
-];
-
-    if (!allowedEvents.includes(cleanEventName)) {
-      return res.status(400).json({
-        ok: false,
-        error: "Invalid funnel event"
-      });
-    }
-
-    const cleanEventDetails =
-  String(eventDetails || "")
-    .slice(0, 5000);
-
-await pool.query(
-  `
-  INSERT INTO promo_funnel_events
-  (
-    flow_id,
-    event_name,
-    page_url,
-    affiliate_ref,
-    user_agent,
-    ip,
-    event_details
-  )
-  VALUES ($1, $2, $3, $4, $5, $6, $7)
-
-  ON CONFLICT (flow_id, event_name)
-  DO UPDATE SET
-    event_details =
-      CASE
-        WHEN EXCLUDED.event_details IS NOT NULL
-             AND EXCLUDED.event_details <> ''
-        THEN EXCLUDED.event_details
-        ELSE promo_funnel_events.event_details
-      END
-  `,
-  [
-    cleanFlowId,
-    cleanEventName,
-    pageUrl || null,
-    affiliateRef || null,
-    req.headers["user-agent"] || "",
-    req.ip || null,
-    cleanEventDetails || null
-  ]
-);
-
-    return res.json({
-      ok: true
-    });
-
-  } catch (err) {
-    console.error(
-      "PROMO FUNNEL EVENT ERROR:",
-      err
-    );
-
-    return res.status(500).json({
-      ok: false
-    });
-  }
-});
-
-// --------------------------------------------
 // CREATE PROMO CHECKOUT LINK
 // --------------------------------------------
 
@@ -1948,7 +1733,6 @@ app.post("/api/create-promo-payment", async (req, res) => {
   cardholderName,
   transactionToken,
   cardData,
-  flowId,
   clickid,
   affiliate_source
 } = req.body || {};
@@ -2038,94 +1822,39 @@ const binomClickid =
 
 const subId =
   originalParams.get("sub_id") || "";
+const email = checkout.email;
+    const selectedPlan = checkout.plan || "4995";
 
-const email =
-  String(checkout.email || "")
-    .trim()
-    .toLowerCase();
+    const amounts = {
+      "2995": 29.95,
+      "3595": 35.95,
+      "4995": 49.95,
+      "lifetime": 49.95
+    };
 
-const selectedPlan =
-  checkout.plan || "3795";
+        const amount = amounts[selectedPlan];
 
-const amounts = {
-  "2295": 22.95,
-  "2695": 26.95,
-  "3795": 37.95,
-  "lifetime": 37.95
-};
+    if (!amount) {
+      return res.status(400).json({ error: "Invalid promo plan" });
+    }
 
-const amount = amounts[selectedPlan];
-
-if (!amount) {
-  return res.status(400).json({
-    error: "Invalid promo plan"
-  });
-}
-
-
-// --------------------------------------------
-// MAXIMUM 3 PAYMENT ATTEMPTS PER EMAIL / 24 HOURS
-// --------------------------------------------
-
-const previousAttemptsResult =
-  await pool.query(
-    `
-    SELECT COUNT(*)::int AS attempt_count
-    FROM xolvis_payments
-    WHERE LOWER(email) = $1
-      AND created_at >= NOW() - INTERVAL '24 hours'
-      AND reference LIKE 'promo-%'
-      AND UPPER(COALESCE(status, '')) NOT IN (
-        'OK',
-        'FINISHED',
-        'SUCCESSFUL'
-      )
-    `,
-    [email]
-  );
-
-const previousAttempts =
-  Number(
-    previousAttemptsResult.rows[0]?.attempt_count || 0
-  );
-
-console.log(
-  "PAYMENT ATTEMPTS FOR EMAIL:",
-  email,
-  previousAttempts
-);
-
-if (previousAttempts >= 3) {
-  console.warn(
-    "PAYMENT BLOCKED: TOO MANY ATTEMPTS:",
-    email
-  );
-
-  return res.status(429).json({
-    success: false,
-    error:
-      "You have reached the maximum number of payment attempts. Please try again later.",
-    code: "TOO_MANY_PAYMENT_ATTEMPTS"
-  });
-}
     
 let mainSiteSuccessUrl;
 
-if (selectedPlan === "2295") {
+if (selectedPlan === "2995") {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_2295;
-
-} else if (selectedPlan === "2695") {
+    process.env.XOLVIS_SUCCESS_URL_2995;
+} else if (selectedPlan === "3595") {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_2695;
-
+    process.env.XOLVIS_SUCCESS_URL_3595;
 } else if (
-  selectedPlan === "3795" ||
+  selectedPlan === "4995" ||
   selectedPlan === "lifetime"
 ) {
   mainSiteSuccessUrl =
-    process.env.XOLVIS_SUCCESS_URL_3795;
+    process.env.XOLVIS_SUCCESS_URL_4995;
 }
+
 const selectedSuccessUrl =
   checkout.success_url ||
   mainSiteSuccessUrl ||
@@ -2181,8 +1910,206 @@ const selectedSuccessUrl =
       });
     }
 
-    const reference = `promo-${selectedPlan}-${Date.now()}`;
+let finalErrorUrl;
 
+try {
+    const errorUrlObject =
+        new URL(
+            process.env.XOLVIS_ERROR_URL ||
+            process.env.XOLVIS_CANCEL_URL
+        );
+
+    const originalParameters =
+        new URLSearchParams(
+            checkout.original_query_string || ""
+        );
+
+    const incomingSub1 =
+        originalParameters.get("sub1");
+
+    const incomingSub2 =
+        originalParameters.get("sub2");
+
+    // Affiliate sub1 becomes sub3
+    if (incomingSub1) {
+        errorUrlObject.searchParams.set(
+            "sub3",
+            incomingSub1
+        );
+    }
+
+    // Affiliate sub2 becomes sub4
+    if (incomingSub2) {
+        errorUrlObject.searchParams.set(
+            "sub4",
+            incomingSub2
+        );
+    }
+
+    if (checkout.affiliate_ref) {
+        errorUrlObject.searchParams.set(
+            "ref",
+            checkout.affiliate_ref
+        );
+    }
+
+    finalErrorUrl =
+        errorUrlObject.toString();
+
+} catch (error) {
+
+    console.error(
+        "Invalid payment error URL:",
+        error
+    );
+
+    return res.status(500).json({
+        error:
+            "Invalid payment error URL"
+    });
+}
+
+    const reference =
+    `promo-${selectedPlan}-${Date.now()}`;
+
+
+// --------------------------------------------
+// MAXIMUM 3 GATEWAY ATTEMPTS PER EMAIL / 24 HOURS
+// --------------------------------------------
+
+const previousAttemptsResult =
+    await pool.query(
+        `
+        SELECT COUNT(*)::int AS attempt_count
+        FROM xolvis_payments
+        WHERE LOWER(email) = LOWER($1)
+
+          AND created_at >=
+              NOW() - INTERVAL '24 hours'
+
+          AND reference LIKE 'promo-%'
+
+          AND xolvis_payload IS NOT NULL
+
+          AND UPPER(
+              COALESCE(status, '')
+          ) NOT IN (
+              'OK',
+              'FINISHED',
+              'SUCCESSFUL',
+              'BLOCKED'
+          )
+        `,
+        [email]
+    );
+
+const previousAttempts =
+    Number(
+        previousAttemptsResult
+            .rows[0]
+            ?.attempt_count || 0
+    );
+
+console.log(
+    "PREVIOUS FAILED/PENDING GATEWAY ATTEMPTS:",
+    email,
+    previousAttempts
+);
+
+if (previousAttempts >= 3) {
+
+    console.warn(
+        "PAYMENT BLOCKED: RETRY LIMIT REACHED:",
+        {
+            email,
+            previousAttempts,
+            bin: cardBin,
+            lastFour: cardLastFour
+        }
+    );
+
+    await pool.query(
+        `
+        INSERT INTO xolvis_payments
+        (
+            reference,
+            email,
+            plan,
+            amount,
+            status,
+            xolvis_payload,
+            user_id,
+            binom_clickid,
+            affiliate_source,
+            traffic_source,
+            sub_id,
+            card_bin,
+            card_type,
+            last_four
+        )
+        VALUES
+        (
+            $1,$2,$3,$4,
+            'BLOCKED',
+            $5,$6,$7,$8,$9,$10,$11,$12,$13
+        )
+
+        ON CONFLICT (reference)
+        DO NOTHING
+        `,
+        [
+            reference,
+            email,
+            selectedPlan,
+            amount,
+
+            {
+                result:
+                    "BLOCKED",
+
+                message:
+                    "CARD_RETRY_LIMIT_REACHED",
+
+                previousAttempts:
+                    previousAttempts,
+
+                cardBin:
+                    cardBin || null,
+
+                cardType:
+                    cardType || null,
+
+                lastFour:
+                    cardLastFour || null,
+
+                binCountry:
+                    cardCountry || null
+            },
+
+            checkout.user_id || null,
+            binomClickid || null,
+            affiliateSource || null,
+            trafficSource || null,
+            subId || null,
+            cardBin || null,
+            cardType || null,
+            cardLastFour || null
+        ]
+    );
+
+    return res.json({
+        success: true,
+
+        returnType:
+            "REDIRECT",
+
+        redirectUrl:
+            finalErrorUrl,
+
+        code:
+            "CARD_RETRY_LIMIT_REACHED"
+    });
+}
 
 
 // --------------------------------------------
@@ -2345,10 +2272,6 @@ if (isBlockedBin) {
   });
 }
 
-const paymentResultUrl =
-  "https://www.legendspeak.net/payment-result?reference=" +
-  encodeURIComponent(reference);
-
 await pool.query(
   `
   INSERT INTO xolvis_payments
@@ -2364,10 +2287,9 @@ await pool.query(
     sub_id,
     card_bin,
     card_type,
-    last_four,
-    final_redirect_url
+    last_four
   )
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
   ON CONFLICT (reference) DO NOTHING
   `,
   [
@@ -2382,12 +2304,9 @@ await pool.query(
     subId || null,
     cardBin || null,
     cardType || null,
-    cardLastFour || null,
-    finalSuccessUrl
+    cardLastFour || null
   ]
-);
-
-const trackingCallbackUrl =
+);const trackingCallbackUrl =
   process.env.XOLVIS_CALLBACK_URL;
 
 if (!trackingCallbackUrl) {
@@ -2397,133 +2316,71 @@ if (!trackingCallbackUrl) {
 }
 
     const response = await fetch(
-  `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
-  {
-    method: "POST",
-    headers: {
-      Authorization: getXolvisAuthHeader(),
-      "Content-Type": "application/json; charset=utf-8",
-      Accept: "application/json"
-    },
-    body: JSON.stringify({
-      merchantTransactionId: reference,
-      transactionToken: transactionToken,
-      amount: amount.toFixed(2),
-      currency: "GBP",
-      description: "Legend Speak Access",
+      `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: getXolvisAuthHeader(),
+          "Content-Type": "application/json; charset=utf-8",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({
+          merchantTransactionId: reference,
+          transactionToken: transactionToken,
+          amount: amount.toFixed(2),
+          currency: "GBP",
+          description: "Speak to Heaven Access",
+          successUrl: finalSuccessUrl,
+cancelUrl: finalErrorUrl,
+errorUrl: finalErrorUrl,
+          callbackUrl: trackingCallbackUrl,
+          customer: {
+            email: email,
+            firstName: checkout.first_name || "",
+            lastName: checkout.last_name || "",
+            ipAddress: req.ip || "127.0.0.1"
+          },
+          language: "en"
+        })
+      }
+    );
 
-      successUrl: paymentResultUrl,
-      cancelUrl: paymentResultUrl,
-      errorUrl: paymentResultUrl,
+    const rawText = await response.text();
 
-      callbackUrl: trackingCallbackUrl,
-      customer: {
-        email: email,
-        firstName: checkout.first_name || "",
-        lastName: checkout.last_name || "",
-        ipAddress: req.ip || "127.0.0.1"
-      },
-      language: "en"
-    })
-  }
-);
+    console.log("PROMO XOLVIS STATUS:", response.status);
+    console.log("PROMO XOLVIS RAW RESPONSE:", rawText);
 
-const rawText = await response.text();
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = { raw: rawText };
+    }
 
-console.log("PROMO XOLVIS STATUS:", response.status);
-console.log("PROMO XOLVIS RAW RESPONSE:", rawText);
-
-let data = {};
-
-try {
-  data = rawText ? JSON.parse(rawText) : {};
-} catch {
-  data = { raw: rawText };
-}
-
-await pool.query(
-  `
-  UPDATE xolvis_payments
-  SET xolvis_payload = $1,
-      xolvis_uuid = $2,
-      status = $3
-  WHERE reference = $4
-  `,
-  [
-    data,
-    data.uuid || null,
-    data.returnType || "created",
-    reference
-  ]
-);
-
-if (
-  !response.ok ||
-  data.success === false ||
-  data.returnType === "ERROR"
-) {
-  return res.status(500).json({
-    error: "Xolvis error",
-    details: data
-  });
-}
-
-
-// --------------------------------------------
-// FUNNEL: XOLVIS TRANSACTION CREATED
-// --------------------------------------------
-
-const cleanFlowId =
-  String(flowId || "").trim();
-
-if (cleanFlowId) {
-  try {
     await pool.query(
       `
-      INSERT INTO promo_funnel_events
-      (
-        flow_id,
-        event_name,
-        page_url,
-        affiliate_ref,
-        user_agent,
-        ip
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)
-
-      ON CONFLICT (flow_id, event_name)
-      DO NOTHING
+      UPDATE xolvis_payments
+      SET xolvis_payload = $1,
+          xolvis_uuid = $2,
+          status = $3
+      WHERE reference = $4
       `,
-      [
-  cleanFlowId,
-  "XOLVIS_TRANSACTION_CREATED",
-  null,
-  affiliateSource || null,
-  req.headers["user-agent"] || "",
-  req.ip || null
-]
+      [data, data.uuid || null, data.returnType || "created", reference]
     );
 
-    console.log(
-      "FUNNEL EVENT: XOLVIS_TRANSACTION_CREATED",
-      cleanFlowId
-    );
+    if (!response.ok || data.success === false || data.returnType === "ERROR") {
+      return res.status(500).json({
+        error: "Xolvis error",
+        details: data
+      });
+    }
 
-  } catch (funnelError) {
-    console.error(
-      "XOLVIS FUNNEL TRACKING ERROR:",
-      funnelError
-    );
-  }
-}
-
-
-res.json({
+    res.json({
   ...data,
   amount: amount.toFixed(2),
   currency: "GBP",
   plan: selectedPlan,
-  paymentResultUrl: paymentResultUrl
+  successUrl: finalSuccessUrl
 });
 
   } catch (err) {
@@ -2578,8 +2435,6 @@ app.post(
           continue;
         }
 
-        // This is the LegendSpeak CRM.
-        // Ignore cases belonging to the other merchant/site.
         const merchantName =
           String(
             row["Merchant Name"] || ""
@@ -2587,14 +2442,11 @@ app.post(
             .trim()
             .toUpperCase();
 
-        if (merchantName !== "LEGENDSPEAK.NET") {
+        if (merchantName !== "SPEAKTOHEAVEN.COM") {
           skipped++;
           continue;
         }
 
-        // The Chargebacks tab should contain actual chargebacks only.
-        // RDR cases are a different dispute type and should not inflate
-        // the chargeback count.
         const caseKind =
           String(
             row["Kind"] || ""
@@ -2614,8 +2466,6 @@ app.post(
           row["Card No."]
         );
 
-        // Paystrax already tells us the card network.
-        // Do not depend on transaction matching just to know Visa/Mastercard.
         const networkCode =
           String(
             row["Ntwk"] || ""
@@ -2908,6 +2758,77 @@ app.post(
 );
 
 // --------------------------------------------
+// ADMIN CHARGEBACKS API
+// --------------------------------------------
+
+app.get(
+  "/api/admin/chargebacks",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+      const result =
+        await pool.query(
+          `
+          SELECT
+            id,
+            case_id,
+            status,
+            network,
+            card_bin,
+            last_four,
+            reason_code,
+            dispute_condition,
+            transaction_date,
+            merchant_transaction_reference,
+            merchant_name,
+            currency,
+            amount,
+            matched_payment_reference,
+            card_country,
+            affiliate_source,
+            plan,
+            card_type,
+            email,
+            imported_at
+
+          FROM chargebacks
+
+          WHERE
+            UPPER(
+              TRIM(
+                COALESCE(
+                  merchant_name,
+                  ''
+                )
+              )
+            ) = 'SPEAKTOHEAVEN.COM'
+
+          ORDER BY
+            transaction_date DESC,
+            imported_at DESC
+          `
+        );
+
+      return res.json({
+        success: true,
+        chargebacks: result.rows
+      });
+
+    } catch (error) {
+      console.error(
+        "Admin chargebacks error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: "Could not load chargebacks"
+      });
+    }
+  }
+);
+
+// --------------------------------------------
 // ADMIN FRAUD REPORT UPLOAD
 // --------------------------------------------
 
@@ -2917,7 +2838,6 @@ app.post(
   fraudUpload.single("file"),
   async (req, res) => {
     try {
-
       if (!req.file) {
         return res.status(400).json({
           success: false,
@@ -2996,7 +2916,6 @@ app.post(
           includeEmpty: false
         },
         (row, rowNumber) => {
-
           if (rowNumber === 1) {
             return;
           }
@@ -3005,7 +2924,6 @@ app.post(
 
           headers.forEach(
             (header, index) => {
-
               if (!header) {
                 return;
               }
@@ -3030,7 +2948,6 @@ app.post(
       let matched = 0;
 
       for (const row of fraudRows) {
-
         const merchantName =
           String(
             row.MERCH_NAME || ""
@@ -3046,13 +2963,13 @@ app.post(
             row.MID || ""
           ).trim();
 
-        const isLegendSpeak =
+        const isSpeakToHeaven =
           normalizedMerchantName ===
-            "legendspeak.net" ||
+            "speaktoheaven.com" ||
           mid ===
-            "000106901001029";
+            "000106901001030";
 
-        if (!isLegendSpeak) {
+        if (!isSpeakToHeaven) {
           ignoredOtherMerchant++;
           continue;
         }
@@ -3170,20 +3087,38 @@ app.post(
             WHERE
               p.paid_at IS NOT NULL
 
-              AND COALESCE(
-                NULLIF(
-                  p.card_bin,
-                  ''
+              AND LEFT(
+                REGEXP_REPLACE(
+                  COALESCE(
+                    NULLIF(
+                      p.card_bin,
+                      ''
+                    ),
+                    a.card_bin,
+                    ''
+                  ),
+                  '[^0-9]',
+                  '',
+                  'g'
                 ),
-                a.card_bin
+                6
               ) = $1
 
-              AND COALESCE(
-                NULLIF(
-                  p.last_four,
-                  ''
+              AND RIGHT(
+                REGEXP_REPLACE(
+                  COALESCE(
+                    NULLIF(
+                      p.last_four,
+                      ''
+                    ),
+                    a.last_four,
+                    ''
+                  ),
+                  '[^0-9]',
+                  '',
+                  'g'
                 ),
-                a.last_four
+                4
               ) = $2
 
               AND ABS(
@@ -3501,7 +3436,6 @@ app.post(
       });
 
     } catch (error) {
-
       console.error(
         "Fraud Excel import error:",
         error
@@ -3526,7 +3460,6 @@ app.get(
   requireAdminPassword,
   async (req, res) => {
     try {
-
       const result =
         await pool.query(
           `
@@ -3575,6 +3508,24 @@ app.get(
 
           FROM fraud_reports
 
+          WHERE
+            (
+              LOWER(
+                REPLACE(
+                  COALESCE(
+                    merchant_name,
+                    ''
+                  ),
+                  ' ',
+                  ''
+                )
+              ) = 'speaktoheaven.com'
+
+              OR
+
+              mid = '000106901001030'
+            )
+
           ORDER BY
             transaction_date DESC,
             id DESC
@@ -3588,7 +3539,6 @@ app.get(
       });
 
     } catch (error) {
-
       console.error(
         "Fraud reports API error:",
         error
@@ -3603,558 +3553,6 @@ app.get(
   }
 );
 
-// --------------------------------------------
-// ADMIN CHARGEBACKS API
-// --------------------------------------------
-
-app.get(
-  "/api/admin/chargebacks",
-  requireAdminPassword,
-  async (req, res) => {
-    try {
-      const result =
-        await pool.query(
-          `
-          SELECT
-            id,
-            case_id,
-            status,
-            network,
-            card_bin,
-            last_four,
-            reason_code,
-            dispute_condition,
-            transaction_date,
-            merchant_transaction_reference,
-            merchant_name,
-            currency,
-            amount,
-            matched_payment_reference,
-            card_country,
-            affiliate_source,
-            plan,
-            card_type,
-            email,
-            imported_at
-
-          FROM chargebacks
-
-          WHERE
-            UPPER(
-              TRIM(
-                COALESCE(
-                  merchant_name,
-                  ''
-                )
-              )
-            ) = 'LEGENDSPEAK.NET'
-
-          ORDER BY
-            transaction_date DESC,
-            imported_at DESC          `
-        );
-
-      return res.json({
-        success: true,
-        chargebacks: result.rows
-      });
-
-    } catch (error) {
-      console.error(
-        "Admin chargebacks error:",
-        error
-      );
-
-      return res.status(500).json({
-        success: false,
-        error: "Could not load chargebacks"
-      });
-    }
-  }
-);
-
-// --------------------------------------------
-// ADMIN PROMO FUNNEL SUMMARY
-// --------------------------------------------
-
-app.get(
-  "/api/admin/promo-funnel-summary",
-  requireAdminPassword,
-  async (req, res) => {
-    try {
-      const result = await pool.query(`
-        SELECT
-          COUNT(*) FILTER (
-  WHERE event_name = 'PAGE1_LOADED'
-) AS page1_loaded,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'PAGE1_BUTTON_CLICKED'
-) AS page1_button_clicked,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'CHECKOUT_LINK_CREATED'
-) AS checkout_link_created,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'PAGE2_LOADED'
-) AS page2_loaded,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'PAYMENT_FIELDS_READY'
-) AS payment_fields_ready,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'PAYMENT_INIT_FAILED'
-) AS payment_init_failed,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'PAYMENT_BUTTON_CLICKED'
-) AS payment_button_clicked,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'PAYMENT_TOKEN_CREATED'
-) AS payment_token_created,
-COUNT(*) FILTER (
-  WHERE event_name = 'PAYMENT_TOKEN_FAILED'
-) AS payment_token_failed,
-
-COUNT(*) FILTER (
-  WHERE event_name = 'XOLVIS_TRANSACTION_CREATED'
-) AS xolvis_transaction_created
-        FROM promo_funnel_events
-
-        WHERE created_at >= NOW() - INTERVAL '24 hours'
-      `);
-
-      const row = result.rows[0];
-
-      const page1Loaded =
-        Number(row.page1_loaded || 0);
-
-      const buttonClicked =
-        Number(row.page1_button_clicked || 0);
-
-      const checkoutCreated =
-        Number(row.checkout_link_created || 0);
-
-      const page2Loaded =
-  Number(row.page2_loaded || 0);
-
-const paymentFieldsReady =
-  Number(
-    row.payment_fields_ready || 0
-  );
-
-const paymentInitFailed =
-  Number(
-    row.payment_init_failed || 0
-  );
-
-const paymentButtonClicked =
-  Number(
-    row.payment_button_clicked || 0
-  );
-
-const paymentTokenCreated =
-  Number(
-    row.payment_token_created || 0
-  );
-
-const paymentTokenFailed =
-  Number(
-    row.payment_token_failed || 0
-  );
-
-const xolvisTransactionCreated =
-  Number(
-    row.xolvis_transaction_created || 0
-  );
-
-const tokenFailureResult =
-  await pool.query(`
-    SELECT
-      created_at,
-      flow_id,
-      affiliate_ref,
-      event_details,
-      user_agent,
-      page_url
-    FROM promo_funnel_events
-    WHERE event_name = 'PAYMENT_TOKEN_FAILED'
-      AND created_at >= NOW() - INTERVAL '24 hours'
-    ORDER BY created_at DESC
-    LIMIT 100
-  `);
-
-const tokenFailures =
-  tokenFailureResult.rows.map(row => ({
-    createdAt: row.created_at,
-    flowId: row.flow_id,
-    affiliateRef: row.affiliate_ref || "",
-    details:
-      row.event_details ||
-      "No error details received",
-    userAgent: row.user_agent || "",
-    pageUrl: row.page_url || ""
-  }));
-
-const paymentInitFailureResult =
-  await pool.query(`
-    SELECT
-      created_at,
-      flow_id,
-      affiliate_ref,
-      event_details,
-      user_agent,
-      page_url
-    FROM promo_funnel_events
-    WHERE event_name = 'PAYMENT_INIT_FAILED'
-      AND created_at >= NOW() - INTERVAL '24 hours'
-    ORDER BY created_at DESC
-    LIMIT 100
-  `);
-
-const paymentInitFailures =
-  paymentInitFailureResult.rows.map(row => ({
-    createdAt: row.created_at,
-    flowId: row.flow_id,
-    affiliateRef: row.affiliate_ref || "",
-    details:
-      row.event_details ||
-      "No error details received",
-    userAgent: row.user_agent || "",
-    pageUrl: row.page_url || ""
-  }));
-
-      return res.json({
-        success: true,
-        period: "last_24_hours",
-
-        page1Loaded,
-buttonClicked,
-checkoutCreated,
-page2Loaded,
-paymentFieldsReady,
-paymentInitFailed,
-paymentButtonClicked,
-paymentTokenCreated,
-paymentTokenFailed,
-xolvisTransactionCreated,
-tokenFailures,
-paymentInitFailures,
-
-        page1ToClickPercent:
-          page1Loaded > 0
-            ? Number(
-                (
-                  buttonClicked /
-                  page1Loaded *
-                  100
-                ).toFixed(2)
-              )
-            : 0,
-
-        clickToCheckoutPercent:
-          buttonClicked > 0
-            ? Number(
-                (
-                  checkoutCreated /
-                  buttonClicked *
-                  100
-                ).toFixed(2)
-              )
-            : 0,
-
-        checkoutToPage2Percent:
-          checkoutCreated > 0
-            ? Number(
-                (
-                  page2Loaded /
-                  checkoutCreated *
-                  100
-                ).toFixed(2)
-              )
-            : 0,
-
-        clickToPage2Percent:
-  buttonClicked > 0
-    ? Number(
-        (
-          page2Loaded /
-          buttonClicked *
-          100
-        ).toFixed(2)
-      )
-    : 0,
-
-page2ToPaymentFieldsReadyPercent:
-  page2Loaded > 0
-    ? Number(
-        (
-          paymentFieldsReady /
-          page2Loaded *
-          100
-        ).toFixed(2)
-      )
-    : 0,
-
-page2ToPaymentInitFailedPercent:
-  page2Loaded > 0
-    ? Number(
-        (
-          paymentInitFailed /
-          page2Loaded *
-          100
-        ).toFixed(2)
-      )
-    : 0,
-
-page2ToPaymentClickPercent:
-  page2Loaded > 0
-    ? Number(
-        (
-          paymentButtonClicked /
-          page2Loaded *
-          100
-        ).toFixed(2)
-      )
-    : 0,
-
-paymentClickToTokenPercent:  paymentButtonClicked > 0
-    ? Number(
-        (
-          paymentTokenCreated /
-          paymentButtonClicked *
-          100
-        ).toFixed(2)
-      )
-    : 0,
-
-paymentTokenFailPercent:
-  paymentButtonClicked > 0
-    ? Number(
-        (
-          paymentTokenFailed /
-          paymentButtonClicked *
-          100
-        ).toFixed(2)
-      )
-    : 0,
-
-tokenToXolvisPercent:
-  paymentTokenCreated > 0
-    ? Number(
-        (
-          xolvisTransactionCreated /
-          paymentTokenCreated *
-          100
-        ).toFixed(2)
-      )
-    : 0,
-
-paymentClickToXolvisPercent:
-  paymentButtonClicked > 0
-    ? Number(
-        (
-          xolvisTransactionCreated /
-          paymentButtonClicked *
-          100
-        ).toFixed(2)
-      )
-    : 0
-});
-
-    } catch (err) {
-      console.error(
-        "PROMO FUNNEL SUMMARY ERROR:",
-        err
-      );
-
-      return res.status(500).json({
-        success: false,
-        error: "Could not load funnel summary"
-      });
-    }
-  }
-);
-
-// --------------------------------------------
-// ADMIN DOWNLOAD ALL RECEIPTS
-// --------------------------------------------
-
-app.get(
-  "/api/admin/receipts/download-all",
-  requireAdminPassword,
-  async (req, res) => {
-    try {
-
-      const receiptObjects = [];
-
-      let continuationToken;
-
-      do {
-        const listResult =
-          await r2Client.send(
-            new ListObjectsV2Command({
-              Bucket: R2_BUCKET,
-              Prefix: "receipts/",
-              ContinuationToken:
-                continuationToken
-            })
-          );
-
-        if (
-          Array.isArray(listResult.Contents)
-        ) {
-          for (
-            const item
-            of listResult.Contents
-          ) {
-            if (
-              item.Key &&
-              item.Key
-                .toLowerCase()
-                .endsWith(".pdf")
-            ) {
-              receiptObjects.push(
-                item.Key
-              );
-            }
-          }
-        }
-
-        continuationToken =
-          listResult.IsTruncated
-            ? listResult.NextContinuationToken
-            : undefined;
-
-      } while (continuationToken);
-
-
-      if (receiptObjects.length === 0) {
-        return res.status(404).json({
-          success: false,
-          error: "No receipt PDFs found"
-        });
-      }
-
-
-      const today =
-        new Date()
-          .toISOString()
-          .slice(0, 10);
-
-      res.setHeader(
-        "Content-Type",
-        "application/zip"
-      );
-
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="legendspeak-invoices-${today}.zip"`
-      );
-
-
-      const archive =
-        archiver(
-          "zip",
-          {
-            zlib: {
-              level: 9
-            }
-          }
-        );
-
-
-      archive.on(
-        "error",
-        error => {
-          console.error(
-            "RECEIPT ZIP ERROR:",
-            error
-          );
-
-          if (!res.headersSent) {
-            res.status(500).json({
-              success: false,
-              error:
-                "Could not create receipt ZIP"
-            });
-          } else {
-            res.destroy(error);
-          }
-        }
-      );
-
-
-      archive.pipe(res);
-
-
-      for (
-        const key
-        of receiptObjects
-      ) {
-
-        const objectResult =
-          await r2Client.send(
-            new GetObjectCommand({
-              Bucket: R2_BUCKET,
-              Key: key
-            })
-          );
-
-
-        if (!objectResult.Body) {
-          continue;
-        }
-
-
-        const zipFilename =
-          key.replace(
-            /^receipts\//,
-            ""
-          );
-
-
-        archive.append(
-          objectResult.Body,
-          {
-            name: zipFilename
-          }
-        );
-      }
-
-
-      await archive.finalize();
-
-
-      console.log(
-        "✅ ADMIN RECEIPT ZIP CREATED:",
-        receiptObjects.length,
-        "PDF files"
-      );
-
-    } catch (error) {
-
-      console.error(
-        "ADMIN RECEIPT DOWNLOAD ERROR:",
-        error
-      );
-
-
-      if (!res.headersSent) {
-        res.status(500).json({
-          success: false,
-          error:
-            "Could not download receipts"
-        });
-      } else {
-        res.destroy(error);
-      }
-    }
-  }
-);
 
 // --------------------------------------------
 // ADMIN TRANSACTIONS API
@@ -4287,8 +3685,8 @@ const openai = new OpenAI({
 	baseURL: "https://openrouter.ai/api/v1",
 	apiKey: process.env.OPENROUTER_API_KEY,
 	defaultHeaders: {
-		'HTTP-Referer': 'https://www.legendspeak.net',	
-		'X-Title': 'Legend Speak'	 	 	 	 	
+		'HTTP-Referer': 'https://www.speaktoheaven.com',	
+		'X-Title': 'Speak to Heaven'	 	 	 	 	
 	}
 });
 
@@ -4322,7 +3720,7 @@ app.post("/api/chat", authenticateToken, async (req, res) => {
 		if (!characterId || !message)
 			return res.status(400).json({ error: "Missing character or message" });
 
-		const character = historicalProfiles.find(c => c.id === Number(characterId));
+		const character = biblicalProfiles.find(c => c.id === Number(characterId));
 		if (!character)
 			return res.status(400).json({ error: "Invalid character" });
 
@@ -4380,22 +3778,19 @@ if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
 
 		// 🔑 NEW: Dynamically set the system prompt based on the character's description
 		const systemPrompt = `
-You are ${character.name}, the real historical person.
+You are ${character.name}, a biblical figure.
 
 ${character.description}
 
 RULES:
-- Respond as ${character.name} would reasonably have responded based on reliable historical knowledge of their life, personality, writings, beliefs, experiences, and historical period.
+- Speak in a biblical tone.
+- Do NOT say you are an AI.
+- Do NOT mention modern technology.
 - Stay fully in character as ${character.name}.
-- Do not say you are an AI, chatbot, or language model.
-- Use vocabulary, attitudes, and reasoning appropriate to ${character.name}.
-- Answer the user's question directly.
-- Do not automatically agree with the user.
-- Do not invent historical facts, quotations, events, or opinions.
-- If something happened after ${character.name}'s lifetime, do not pretend to have personally known about it.
-- If appropriate, reason about later events hypothetically from ${character.name}'s historical worldview.
+- Speak with wisdom, authority, or humility appropriate to this figure.
+- Give spiritual and reflective answers.
 
-Remain ${character.name} throughout the conversation.
+Remain in character at all times.
 `;
 
 		// Send to OpenRouter/OpenAI
@@ -4456,337 +3851,6 @@ app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
 	}
 });
 
-// --------------------------------------------
-// PAYMENT RESULT STATUS CHECK
-// --------------------------------------------
-
-app.get("/api/payment-result-status", async (req, res) => {
-  try {
-    const reference =
-      String(req.query.reference || "").trim();
-
-    if (!reference) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing payment reference"
-      });
-    }
-
-    const result = await pool.query(
-      `
-      SELECT
-        reference,
-        status,
-        paid_at,
-        final_redirect_url,
-        xolvis_payload
-      FROM xolvis_payments
-      WHERE reference = $1
-      LIMIT 1
-      `,
-      [reference]
-    );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({
-        ok: false,
-        error: "Payment not found"
-      });
-    }
-
-    const payment = result.rows[0];
-
-const trackingResult = await pool.query(
-  `
-  SELECT original_query_string, affiliate_ref
-  FROM promo_checkout_links
-  WHERE email = (
-    SELECT email
-    FROM xolvis_payments
-    WHERE reference = $1
-    LIMIT 1
-  )
-  ORDER BY created_at DESC
-  LIMIT 1
-  `,
-  [reference]
-);
-
-const trackingCheckout =
-  trackingResult.rows[0] || {};
-
-const originalParameters =
-  new URLSearchParams(
-    trackingCheckout.original_query_string || ""
-  );
-
-const incomingSub1 =
-  originalParameters.get("sub1");
-
-const incomingSub2 =
-  originalParameters.get("sub2");
-
-function buildFailureRedirectUrl(baseUrl) {
-  if (!baseUrl) return "";
-
-  const urlObject =
-    new URL(baseUrl);
-
-  if (incomingSub1) {
-    urlObject.searchParams.set(
-      "sub3",
-      incomingSub1
-    );
-  }
-
-  if (incomingSub2) {
-    urlObject.searchParams.set(
-      "sub4",
-      incomingSub2
-    );
-  }
-
-  if (trackingCheckout.affiliate_ref) {
-    urlObject.searchParams.set(
-      "ref",
-      trackingCheckout.affiliate_ref
-    );
-  }
-
-  return urlObject.toString();
-}
-
-const finalCancelUrl =
-  buildFailureRedirectUrl(
-    process.env.XOLVIS_CANCEL_URL
-  );
-
-const finalErrorUrl =
-  buildFailureRedirectUrl(
-    process.env.XOLVIS_ERROR_URL ||
-    process.env.XOLVIS_CANCEL_URL
-  );
-
-    const status =
-      String(payment.status || "")
-        .trim()
-        .toUpperCase();
-
-    const payload =
-      payment.xolvis_payload || {};
-
-    const gatewayMessage =
-      String(payload.message || "")
-        .trim()
-        .toLowerCase();
-
-    const adapterMessage =
-      String(payload.adapterMessage || "")
-        .trim()
-        .toLowerCase();
-
-    const gatewayCode =
-      String(payload.code || "")
-        .trim();
-
-    // --------------------------------------------
-    // REAL SUCCESS
-    // --------------------------------------------
-
-    if (
-      payment.paid_at &&
-      payment.final_redirect_url
-    ) {
-      return res.json({
-        ok: true,
-        final: true,
-        successful: true,
-        resultType: "SUCCESS",
-        status: status,
-        redirectUrl: payment.final_redirect_url
-      });
-    }
-
-    // --------------------------------------------
-    // EXPLICIT USER CANCELLATION
-    // --------------------------------------------
-
-    const isUserCancelled =
-      gatewayCode === "1003" ||
-      gatewayMessage === "user cancelled" ||
-      adapterMessage === "cancelled by user";
-
-    if (isUserCancelled) {
-      return res.json({
-        ok: true,
-        final: true,
-        successful: false,
-        resultType: "CANCEL",
-        status: status,
-redirectUrl:
-  finalCancelUrl      });
-    }
-
-    // --------------------------------------------
-    // ALL OTHER FINAL FAILURES
-    // --------------------------------------------
-
-    const isFailure =
-      status === "ERROR" ||
-      status === "FAILED" ||
-      status === "DECLINED" ||
-      status === "CANCELLED" ||
-      status === "BLOCKED";
-
-    if (isFailure) {
-      return res.json({
-        ok: true,
-        final: true,
-        successful: false,
-        resultType: "ERROR",
-        status: status,
-        redirectUrl:
-  finalErrorUrl
-      });
-    }
-
-    // --------------------------------------------
-    // STILL WAITING FOR FINAL WEBHOOK
-    // --------------------------------------------
-
-    return res.json({
-      ok: true,
-      final: false,
-      successful: false,
-      resultType: "PENDING",
-      status: status || "UNKNOWN"
-    });
-
-  } catch (err) {
-    console.error(
-      "PAYMENT RESULT STATUS ERROR:",
-      err
-    );
-
-    return res.status(500).json({
-      ok: false,
-      error: "Could not check payment status"
-    });
-  }
-});
-
-
-// --------------------------------------------
-// PAYMENT RESULT PAGE
-// --------------------------------------------
-
-app.get("/payment-result", (req, res) => {
-  const reference =
-    String(req.query.reference || "").trim();
-
-  if (!reference) {
-    return res.status(400).send(
-      "Invalid payment reference."
-    );
-  }
-
-  res.send(`
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  >
-
-  <title>Checking Payment</title>
-</head>
-
-<body style="
-  font-family: Arial, sans-serif;
-  text-align: center;
-  padding: 80px 20px;
-">
-
-  <h2 id="title">
-    Checking your payment...
-  </h2>
-
-  <p id="message">
-    Please wait while we confirm your transaction.
-  </p>
-
-  <script>
-    const reference =
-      ${JSON.stringify(reference)};
-
-    let attempts = 0;
-
-    const maxAttempts = 300;
-
-    async function checkPayment() {
-      attempts++;
-
-      try {
-        const response = await fetch(
-          "/api/payment-result-status?reference=" +
-          encodeURIComponent(reference),
-          {
-            cache: "no-store"
-          }
-        );
-
-        const data =
-          await response.json();
-
-        if (
-          data.ok === true &&
-          data.final === true &&
-          data.redirectUrl
-        ) {
-          window.location.replace(
-            data.redirectUrl
-          );
-
-          return;
-        }
-
-      } catch (error) {
-        console.error(
-          "Payment check failed:",
-          error
-        );
-      }
-
-      if (attempts < maxAttempts) {
-        setTimeout(
-          checkPayment,
-          2000
-        );
-
-        return;
-      }
-
-      document.getElementById(
-        "title"
-      ).textContent =
-        "Payment still processing";
-
-      document.getElementById(
-        "message"
-      ).textContent =
-        "We have not yet received confirmation of your payment. Please do not submit another payment.";
-    }
-
-    checkPayment();
-  </script>
-
-</body>
-</html>
-  `);
-});
 app.get("/xolvis-webhook", (req, res) => {
   console.log("XOLVIS WEBHOOK GET TEST");
   res.send("Xolvis webhook endpoint is reachable");
@@ -4856,10 +3920,10 @@ const isSuccessful =
 
     const payment = paymentResult.rows[0];
 
-const wasAlreadyPaid =
-  payment.paid_at != null;
+    const wasAlreadyPaid =
+      payment.paid_at != null;
 
-await pool.query(
+    await pool.query(
       `
       UPDATE xolvis_payments
       SET
@@ -4915,21 +3979,22 @@ if (wasAlreadyPaid) {
   });
 }
 
-let accessPlan = "scholar";
-let days = 30;
+    let accessPlan = "god";
+    let days = 30;
 
-if (payment.plan === "2695") {
-  accessPlan = "all";
-  days = 30;
-}
+    if (payment.plan === "3595") {
+      accessPlan = "all";
+      days = 30;
+    }
 
-if (
-  payment.plan === "3795" ||
-  payment.plan === "lifetime"
-) {
-  accessPlan = "all";
-  days = 90;
-}
+    if (
+      payment.plan === "4995" ||
+      payment.plan === "lifetime"
+
+    ) {
+      accessPlan = "all";
+      days = 90;
+    }
 
     const expiresAt = new Date();
     expiresAt.setDate(
@@ -4965,115 +4030,106 @@ if (
 );
 
     if (updateResult.rows.length === 0) {
-  console.error(
-    "User not found:",
-    payment.email
-  );
-}
+      console.error(
+        "User not found:",
+        payment.email
+      );
+    }
 
-    // --------------------------------------------
-// RECEIPT PROCESS
-// Separate from website access
-// --------------------------------------------
+    try {
+      const productName =
+        getReceiptProductName(
+          payment.plan
+        );
 
-try {
+      const firstName =
+        data?.customer?.firstName ||
+        "";
 
-  const productName =
-    getReceiptProductName(
-      payment.plan
-    );
+      const lastName =
+        data?.customer?.lastName ||
+        "";
 
-  const customerName =
-    [
-      data?.customer?.firstName,
-      data?.customer?.lastName
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
-    data?.returnData?.cardHolder ||
-    "Customer";
+      const customerName =
+        `${firstName} ${lastName}`.trim() ||
+        data?.returnData?.cardHolder ||
+        "Customer";
 
-  const rawPaymentMethod =
-    String(
-      data?.paymentMethod ||
-      "Credit Card"
-    );
+      let paymentMethod =
+        data?.paymentMethod ||
+        "Credit Card";
 
-  const paymentMethod =
-    rawPaymentMethod.replace(
-      /^creditcard$/i,
-      "Credit Card"
-    );
-
-  const receiptNumber =
-    "STH-" +
-    String(payment.id)
-      .padStart(8, "0");
-
-  const receiptPdf =
-    await makeReceiptPdf({
-      receiptNumber,
-      customerName,
-      email: payment.email,
-      productName,
-      amount: payment.amount,
-      paymentMethod,
-      reference: payment.reference
-    });
-
-  await uploadReceiptToR2({
-    pdfBuffer: receiptPdf,
-    receiptNumber
-  });
-
-  await sendEmail(
-    payment.email,
-    "Your Legend Speak payment receipt",
-    `
-    <h2>Payment received</h2>
-
-    <p>
-      Thank you for your payment.
-    </p>
-
-    <p>
-      <strong>Product:</strong>
-      ${productName}
-    </p>
-
-    <p>
-      <strong>Amount:</strong>
-      £${Number(payment.amount).toFixed(2)}
-    </p>
-
-    <p>
-      Your payment receipt is attached.
-    </p>
-    `,
-    [
-      {
-        filename:
-          `${receiptNumber}.pdf`,
-        content:
-          receiptPdf.toString("base64")
+      if (
+        String(paymentMethod)
+          .toLowerCase() ===
+        "creditcard"
+      ) {
+        paymentMethod =
+          "Credit Card";
       }
-    ]
-  );
 
-  console.log(
-    "✅ RECEIPT PROCESS COMPLETED:",
-    receiptNumber
-  );
+      const receiptNumber =
+        "STH-" +
+        String(payment.id)
+          .padStart(6, "0");
 
-} catch (receiptError) {
+      const receiptPdf =
+        await makeReceiptPdf({
+          receiptNumber,
+          customerName,
+          email: payment.email,
+          productName,
+          amount: payment.amount,
+          paymentMethod,
+          reference: payment.reference
+        });
 
-  console.error(
-    "❌ RECEIPT PROCESS FAILED:",
-    receiptError
-  );
+      await uploadReceiptToR2({
+        pdfBuffer: receiptPdf,
+        receiptNumber
+      });
 
-}
+      await sendEmail(
+        payment.email,
+        "Your SpeakToHeaven.com receipt",
+        `
+        <h2>Payment received</h2>
+
+        <p>Thank you for your payment.</p>
+
+        <p>
+        <strong>Product:</strong>
+        ${productName}
+        </p>
+
+        <p>
+        <strong>Amount:</strong>
+        £${Number(payment.amount).toFixed(2)}
+        </p>
+
+        <p>Your payment receipt is attached.</p>
+        `,
+        [
+          {
+            filename:
+              `${receiptNumber}.pdf`,
+            content:
+              receiptPdf.toString("base64")
+          }
+        ]
+      );
+
+      console.log(
+        "✅ RECEIPT PROCESS COMPLETE:",
+        receiptNumber
+      );
+
+    } catch (receiptError) {
+      console.error(
+        "❌ RECEIPT PROCESS FAILED:",
+        receiptError
+      );
+    }
 
     res.json({
       ok: true
@@ -5093,37 +4149,44 @@ try {
 });
 app.get("/test-receipt-email", async (req, res) => {
   try {
-
     const email =
       "markvanstratum67@gmail.com";
 
     const receiptNumber =
-      "STH-TEST-" + Date.now();
+      "STH-TEST-" +
+      Date.now();
 
     const receiptPdf =
       await makeReceiptPdf({
         receiptNumber,
-        customerName: "Test Customer",
+        customerName:
+          "Test Customer",
         email,
         productName:
-          "Legend Speak 3 Month Full Access",
-        amount: 37.95,
-        paymentMethod: "Credit Card",
+          "SpeakToHeaven.com 3 Month Full Access",
+        amount:
+          49.95,
+        paymentMethod:
+          "Credit Card",
         reference:
-          "TEST-" + Date.now()
+          "TEST-PAYMENT"
       });
 
-    await uploadReceiptToR2({
-      pdfBuffer: receiptPdf,
-      receiptNumber
-    });
+    const r2Key =
+      await uploadReceiptToR2({
+        pdfBuffer:
+          receiptPdf,
+        receiptNumber
+      });
 
     await sendEmail(
       email,
-      "TEST Legend Speak Receipt",
+      "TEST SpeakToHeaven.com Receipt",
       `
-      <h2>Test receipt</h2>
-      <p>This is a test receipt.</p>
+        <h2>SpeakToHeaven.com receipt test</h2>
+        <p>This is a test payment receipt.</p>
+        <p><strong>Product:</strong> SpeakToHeaven.com 3 Month Full Access</p>
+        <p><strong>Amount:</strong> £49.95</p>
       `,
       [
         {
@@ -5135,20 +4198,26 @@ app.get("/test-receipt-email", async (req, res) => {
       ]
     );
 
-    res.send(
-      "Test receipt created, uploaded and emailed."
-    );
+    res.json({
+      success: true,
+      receiptNumber,
+      r2Key
+    });
 
   } catch (error) {
-
     console.error(
       "TEST RECEIPT ERROR:",
       error
     );
 
-    res.status(500).send(
-      "Test receipt failed."
-    );
+    res.status(500).json({
+      success: false,
+      error:
+        String(
+          error?.message ||
+          error
+        )
+    });
   }
 });
 app.get("/", (req, res) => {
@@ -5156,7 +4225,7 @@ app.get("/", (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-<title>Legend Speak</title>
+<title>Speak To Heaven</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
@@ -5184,7 +4253,7 @@ margin:0 10px;
 
 <body>
 
-<h1>Legend Speak</h1>
+<h1>Speak To Heaven</h1>
 
 <p>Your AI biblical conversation platform.</p>
 
