@@ -23,6 +23,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import archiver from "archiver";
+import ExcelJS from "exceljs";
 
 
 
@@ -577,6 +578,89 @@ function getChargebackCardParts(maskedCard) {
   };
 }
 
+function getFraudExcelCellValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null
+  ) {
+    if (value.text !== undefined) {
+      return String(value.text).trim();
+    }
+
+    if (value.result !== undefined) {
+      return value.result;
+    }
+
+    if (Array.isArray(value.richText)) {
+      return value.richText
+        .map(item => item.text || "")
+        .join("")
+        .trim();
+    }
+  }
+
+  return String(value).trim();
+}
+
+
+function normalizeFraudExcelDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+
+    return value
+      .toISOString()
+      .slice(0, 10);
+  }
+
+  const text = String(value).trim();
+
+  const isoMatch =
+    text.match(
+      /^(\d{4})-(\d{2})-(\d{2})/
+    );
+
+  if (isoMatch) {
+    return (
+      isoMatch[1] +
+      "-" +
+      isoMatch[2] +
+      "-" +
+      isoMatch[3]
+    );
+  }
+
+  const ukMatch =
+    text.match(
+      /^(\d{2})\/(\d{2})\/(\d{4})/
+    );
+
+  if (ukMatch) {
+    return (
+      ukMatch[3] +
+      "-" +
+      ukMatch[2] +
+      "-" +
+      ukMatch[1]
+    );
+  }
+
+  return null;
+}
+
 // JSON parser FIRST
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -1013,6 +1097,82 @@ await pool.query(`
 
 console.log("✅ Chargebacks table ready");
 
+// --------------------------------------------
+// FRAUD REPORTS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS fraud_reports (
+    id BIGSERIAL PRIMARY KEY,
+
+    gateway_reference TEXT,
+    sequence_number TEXT,
+
+    card_bin TEXT,
+    last_four TEXT,
+    card_scheme TEXT,
+
+    merchant_name TEXT,
+    mid TEXT,
+
+    acquirer_reference TEXT,
+
+    record_date DATE,
+    transaction_date DATE,
+    post_date DATE,
+
+    fraud_amount_usd NUMERIC(12,2),
+    fraud_type TEXT,
+
+    original_currency TEXT,
+    original_amount NUMERIC(12,2),
+
+    auth_code TEXT,
+    file_reference TEXT,
+
+    merchant_city TEXT,
+    mcc TEXT,
+    pos_entry TEXT,
+    cap_method TEXT,
+
+    matched_payment_reference TEXT,
+
+    card_country TEXT,
+    affiliate_source TEXT,
+    plan TEXT,
+    card_type TEXT,
+    email TEXT,
+
+    imported_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE (
+      gateway_reference,
+      sequence_number,
+      card_bin,
+      last_four,
+      transaction_date,
+      original_amount
+    )
+  );
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_fraud_reports_bin
+  ON fraud_reports(card_bin);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_fraud_reports_transaction_date
+  ON fraud_reports(transaction_date);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_fraud_reports_mid
+  ON fraud_reports(mid);
+`);
+
+console.log("✅ Fraud reports table ready");
+
 console.log("✅ Card payment attempts table ready");
 	} catch (err) {
 		console.error("❌ DB Init error:", err);
@@ -1220,6 +1380,13 @@ const chargebackUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024
+  }
+});
+
+const fraudUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024
   }
 });
 
@@ -2735,6 +2902,702 @@ app.post(
       return res.status(500).json({
         success: false,
         error: "Could not import chargeback CSV"
+      });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN FRAUD REPORT UPLOAD
+// --------------------------------------------
+
+app.post(
+  "/api/admin/fraud/upload",
+  requireAdminPassword,
+  fraudUpload.single("file"),
+  async (req, res) => {
+    try {
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: "No fraud Excel file uploaded"
+        });
+      }
+
+      const workbook =
+        new ExcelJS.Workbook();
+
+      await workbook.xlsx.load(
+        req.file.buffer
+      );
+
+      const worksheet =
+        workbook.worksheets[0];
+
+      if (!worksheet) {
+        return res.status(400).json({
+          success: false,
+          error: "The Excel file contains no worksheet"
+        });
+      }
+
+      const headers = [];
+
+      worksheet
+        .getRow(1)
+        .eachCell(
+          {
+            includeEmpty: true
+          },
+          (cell, columnNumber) => {
+            headers[columnNumber - 1] =
+              String(
+                getFraudExcelCellValue(
+                  cell.value
+                )
+              )
+                .trim()
+                .toUpperCase();
+          }
+        );
+
+      const requiredHeaders = [
+        "GATEWAY_REFERENCE_1",
+        "SEQUENCE_NUM",
+        "CARD_ACCT_NO",
+        "MERCH_NAME",
+        "MID",
+        "TXN_DATE",
+        "FRAUD_TYPE",
+        "ORIG_TXN_CCY",
+        "ORIG_TXN_AMT"
+      ];
+
+      const missingHeaders =
+        requiredHeaders.filter(
+          header =>
+            !headers.includes(header)
+        );
+
+      if (missingHeaders.length) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Fraud report is missing columns: " +
+            missingHeaders.join(", ")
+        });
+      }
+
+      const fraudRows = [];
+
+      worksheet.eachRow(
+        {
+          includeEmpty: false
+        },
+        (row, rowNumber) => {
+
+          if (rowNumber === 1) {
+            return;
+          }
+
+          const item = {};
+
+          headers.forEach(
+            (header, index) => {
+
+              if (!header) {
+                return;
+              }
+
+              item[header] =
+                getFraudExcelCellValue(
+                  row.getCell(
+                    index + 1
+                  ).value
+                );
+            }
+          );
+
+          fraudRows.push(item);
+        }
+      );
+
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+      let ignoredOtherMerchant = 0;
+      let matched = 0;
+
+      for (const row of fraudRows) {
+
+        const merchantName =
+          String(
+            row.MERCH_NAME || ""
+          ).trim();
+
+        const normalizedMerchantName =
+          merchantName
+            .replace(/\s+/g, "")
+            .toLowerCase();
+
+        const mid =
+          String(
+            row.MID || ""
+          ).trim();
+
+        const isLegendSpeak =
+          normalizedMerchantName ===
+            "legendspeak.net" ||
+          mid ===
+            "000106901001029";
+
+        if (!isLegendSpeak) {
+          ignoredOtherMerchant++;
+          continue;
+        }
+
+        const maskedCard =
+          String(
+            row.CARD_ACCT_NO || ""
+          ).trim();
+
+        const {
+          cardBin,
+          lastFour
+        } =
+          getChargebackCardParts(
+            maskedCard
+          );
+
+        const transactionDate =
+          normalizeFraudExcelDate(
+            row.TXN_DATE
+          );
+
+        const recordDate =
+          normalizeFraudExcelDate(
+            row.RECORD_DATE
+          );
+
+        const postDate =
+          normalizeFraudExcelDate(
+            row.POST_DATE
+          );
+
+        const originalAmount =
+          Number(
+            row.ORIG_TXN_AMT
+          );
+
+        const fraudAmountUsd =
+          Number(
+            row.FRAUD_AMT_USD
+          );
+
+        if (
+          !cardBin ||
+          !lastFour ||
+          !transactionDate ||
+          !Number.isFinite(
+            originalAmount
+          )
+        ) {
+          skipped++;
+          continue;
+        }
+
+        let matchedPayment = null;
+
+        const paymentMatch =
+          await pool.query(
+            `
+            SELECT
+              p.reference,
+              p.email,
+              p.plan,
+              p.affiliate_source,
+
+              COALESCE(
+                NULLIF(
+                  p.card_bin,
+                  ''
+                ),
+                a.card_bin
+              ) AS card_bin,
+
+              COALESCE(
+                NULLIF(
+                  p.last_four,
+                  ''
+                ),
+                a.last_four
+              ) AS last_four,
+
+              COALESCE(
+                NULLIF(
+                  p.card_type,
+                  ''
+                ),
+                a.card_type
+              ) AS card_type,
+
+              COALESCE(
+                p.xolvis_payload
+                  #>>
+                  '{returnData,binCountry}',
+
+                p.xolvis_payload
+                  #>>
+                  '{returnData,binRawData,data,country_alpha2}',
+
+                p.xolvis_payload
+                  #>>
+                  '{customer,binCountry}',
+
+                p.xolvis_payload
+                  ->>
+                  'binCountry'
+              ) AS card_country
+
+            FROM xolvis_payments p
+
+            LEFT JOIN card_payment_attempts a
+              ON
+                a.payment_reference =
+                p.reference
+
+            WHERE
+              p.paid_at IS NOT NULL
+
+              AND COALESCE(
+                NULLIF(
+                  p.card_bin,
+                  ''
+                ),
+                a.card_bin
+              ) = $1
+
+              AND COALESCE(
+                NULLIF(
+                  p.last_four,
+                  ''
+                ),
+                a.last_four
+              ) = $2
+
+              AND ABS(
+                p.amount -
+                $3::numeric
+              ) < 0.01
+
+              AND p.created_at >=
+                $4::date -
+                INTERVAL '1 day'
+
+              AND p.created_at <
+                $4::date +
+                INTERVAL '2 days'
+
+            ORDER BY
+              ABS(
+                EXTRACT(
+                  EPOCH FROM
+                  (
+                    p.created_at -
+                    $4::date
+                  )
+                )
+              )
+
+            LIMIT 1
+            `,
+            [
+              cardBin,
+              lastFour,
+              originalAmount,
+              transactionDate
+            ]
+          );
+
+        if (
+          paymentMatch.rows.length
+        ) {
+          matchedPayment =
+            paymentMatch.rows[0];
+
+          matched++;
+        }
+
+        const gatewayReference =
+          String(
+            row.GATEWAY_REFERENCE_1 ||
+            ""
+          ).trim();
+
+        const sequenceNumber =
+          String(
+            row.SEQUENCE_NUM ||
+            ""
+          ).trim();
+
+        const existing =
+          await pool.query(
+            `
+            SELECT id
+            FROM fraud_reports
+
+            WHERE
+              gateway_reference = $1
+              AND sequence_number = $2
+              AND card_bin = $3
+              AND last_four = $4
+              AND transaction_date = $5
+              AND original_amount = $6
+            `,
+            [
+              gatewayReference,
+              sequenceNumber,
+              cardBin,
+              lastFour,
+              transactionDate,
+              originalAmount
+            ]
+          );
+
+        await pool.query(
+          `
+          INSERT INTO fraud_reports (
+            gateway_reference,
+            sequence_number,
+
+            card_bin,
+            last_four,
+            card_scheme,
+
+            merchant_name,
+            mid,
+
+            acquirer_reference,
+
+            record_date,
+            transaction_date,
+            post_date,
+
+            fraud_amount_usd,
+            fraud_type,
+
+            original_currency,
+            original_amount,
+
+            auth_code,
+            file_reference,
+
+            merchant_city,
+            mcc,
+            pos_entry,
+            cap_method,
+
+            matched_payment_reference,
+
+            card_country,
+            affiliate_source,
+            plan,
+            card_type,
+            email
+          )
+
+          VALUES (
+            $1, $2,
+            $3, $4, $5,
+            $6, $7,
+            $8,
+            $9, $10, $11,
+            $12, $13,
+            $14, $15,
+            $16, $17,
+            $18, $19, $20, $21,
+            $22,
+            $23, $24, $25, $26, $27
+          )
+
+          ON CONFLICT (
+            gateway_reference,
+            sequence_number,
+            card_bin,
+            last_four,
+            transaction_date,
+            original_amount
+          )
+
+          DO UPDATE SET
+            card_scheme =
+              EXCLUDED.card_scheme,
+
+            merchant_name =
+              EXCLUDED.merchant_name,
+
+            mid =
+              EXCLUDED.mid,
+
+            acquirer_reference =
+              EXCLUDED.acquirer_reference,
+
+            record_date =
+              EXCLUDED.record_date,
+
+            post_date =
+              EXCLUDED.post_date,
+
+            fraud_amount_usd =
+              EXCLUDED.fraud_amount_usd,
+
+            fraud_type =
+              EXCLUDED.fraud_type,
+
+            original_currency =
+              EXCLUDED.original_currency,
+
+            auth_code =
+              EXCLUDED.auth_code,
+
+            file_reference =
+              EXCLUDED.file_reference,
+
+            merchant_city =
+              EXCLUDED.merchant_city,
+
+            mcc =
+              EXCLUDED.mcc,
+
+            pos_entry =
+              EXCLUDED.pos_entry,
+
+            cap_method =
+              EXCLUDED.cap_method,
+
+            matched_payment_reference =
+              EXCLUDED.matched_payment_reference,
+
+            card_country =
+              EXCLUDED.card_country,
+
+            affiliate_source =
+              EXCLUDED.affiliate_source,
+
+            plan =
+              EXCLUDED.plan,
+
+            card_type =
+              EXCLUDED.card_type,
+
+            email =
+              EXCLUDED.email,
+
+            imported_at =
+              NOW()
+          `,
+          [
+            gatewayReference,
+            sequenceNumber,
+
+            cardBin,
+            lastFour,
+            String(
+              row.CARD_SCHEME || ""
+            ).trim(),
+
+            merchantName,
+            mid,
+
+            String(
+              row.ACQ_REF_N || ""
+            ).trim(),
+
+            recordDate,
+            transactionDate,
+            postDate,
+
+            Number.isFinite(
+              fraudAmountUsd
+            )
+              ? fraudAmountUsd
+              : null,
+
+            String(
+              row.FRAUD_TYPE || ""
+            ).trim(),
+
+            String(
+              row.ORIG_TXN_CCY || ""
+            ).trim(),
+
+            originalAmount,
+
+            String(
+              row.AUTH_CODE || ""
+            ).trim(),
+
+            String(
+              row.FILE_REFERENCE || ""
+            ).trim(),
+
+            String(
+              row.MERCH_CITY || ""
+            ).trim(),
+
+            String(
+              row.MCC || ""
+            ).trim(),
+
+            String(
+              row.POS_ENTRY || ""
+            ).trim(),
+
+            String(
+              row.CAP_MET || ""
+            ).trim(),
+
+            matchedPayment
+              ?.reference ||
+              null,
+
+            matchedPayment
+              ?.card_country ||
+              null,
+
+            matchedPayment
+              ?.affiliate_source ||
+              null,
+
+            matchedPayment
+              ?.plan ||
+              null,
+
+            matchedPayment
+              ?.card_type ||
+              null,
+
+            matchedPayment
+              ?.email ||
+              null
+          ]
+        );
+
+        if (existing.rows.length) {
+          updated++;
+        } else {
+          imported++;
+        }
+      }
+
+      return res.json({
+        success: true,
+        imported,
+        updated,
+        skipped,
+        ignoredOtherMerchant,
+        matched
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Fraud Excel import error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not import fraud Excel report"
+      });
+    }
+  }
+);
+
+
+// --------------------------------------------
+// ADMIN FRAUD REPORTS API
+// --------------------------------------------
+
+app.get(
+  "/api/admin/fraud",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+
+      const result =
+        await pool.query(
+          `
+          SELECT
+            id,
+
+            gateway_reference,
+            sequence_number,
+
+            card_bin,
+            last_four,
+            card_scheme,
+
+            merchant_name,
+            mid,
+
+            acquirer_reference,
+
+            record_date,
+            transaction_date,
+            post_date,
+
+            fraud_amount_usd,
+            fraud_type,
+
+            original_currency,
+            original_amount,
+
+            auth_code,
+            file_reference,
+
+            merchant_city,
+            mcc,
+            pos_entry,
+            cap_method,
+
+            matched_payment_reference,
+
+            card_country,
+            affiliate_source,
+            plan,
+            card_type,
+            email,
+
+            imported_at
+
+          FROM fraud_reports
+
+          ORDER BY
+            transaction_date DESC,
+            id DESC
+          `
+        );
+
+      return res.json({
+        success: true,
+        fraudReports:
+          result.rows
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Fraud reports API error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not load fraud reports"
       });
     }
   }
