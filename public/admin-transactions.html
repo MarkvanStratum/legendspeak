@@ -235,8 +235,9 @@
         </div>
         <div class="header-actions">
           <button id="refreshButton" class="primary-button">Refresh</button>
-          <button id="downloadButton" class="secondary-button">Download CSV</button>
-          <button id="logoutButton" class="danger-button">Log out</button>
+<button id="downloadButton" class="secondary-button">Download CSV</button>
+<button id="downloadInvoicesButton" class="secondary-button">Download All Invoices</button>
+<button id="logoutButton" class="danger-button">Log out</button>
         </div>
       </div>
 
@@ -486,6 +487,7 @@
   <script>    const API_URL = "/api/admin/transactions";
 const CHARGEBACKS_API_URL = "/api/admin/chargebacks";
 const CHARGEBACK_UPLOAD_URL = "/api/admin/chargebacks/upload";
+const INVOICES_DOWNLOAD_URL = "/api/admin/receipts/download-all";
     let adminPassword = "";
     let allTransactions = [];
     let filteredTransactions = [];
@@ -499,8 +501,9 @@ let allChargebacks = [];
     const loginButton = byId("loginButton");
     const loginError = byId("loginError");
     const refreshButton = byId("refreshButton");
-    const downloadButton = byId("downloadButton");
-    const logoutButton = byId("logoutButton");
+const downloadButton = byId("downloadButton");
+const downloadInvoicesButton = byId("downloadInvoicesButton");
+const logoutButton = byId("logoutButton");
     const clearFiltersButton = byId("clearFiltersButton");
     const searchInput = byId("searchInput");
     const statusFilter = byId("statusFilter");
@@ -1113,6 +1116,78 @@ t.xolvis_uuid || ""
       link.remove();
       URL.revokeObjectURL(url);
     }
+
+
+async function downloadAllInvoices() {
+  downloadInvoicesButton.disabled = true;
+  downloadInvoicesButton.textContent = "Preparing Invoices...";
+
+  try {
+    const response = await fetch(
+      INVOICES_DOWNLOAD_URL,
+      {
+        headers: {
+          "x-admin-password": adminPassword
+        },
+        cache: "no-store"
+      }
+    );
+
+    if (response.status === 401) {
+      throw new Error("Incorrect admin password");
+    }
+
+    if (!response.ok) {
+      let errorMessage = "Could not download invoices";
+
+      try {
+        const data = await response.json();
+
+        if (data.error) {
+          errorMessage = data.error;
+        }
+      } catch {}
+
+      throw new Error(errorMessage);
+    }
+
+    const blob = await response.blob();
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const link =
+      document.createElement("a");
+
+    link.href = url;
+
+    link.download =
+      "legendspeak-invoices-" +
+      new Date()
+        .toISOString()
+        .slice(0, 10) +
+      ".zip";
+
+    document.body.appendChild(link);
+
+    link.click();
+    link.remove();
+
+    URL.revokeObjectURL(url);
+
+  } catch (error) {
+    alert(
+      "Invoice download failed: " +
+      error.message
+    );
+
+  } finally {
+    downloadInvoicesButton.disabled = false;
+    downloadInvoicesButton.textContent =
+      "Download All Invoices";
+  }
+}
+
 
 function showDashboardView(viewName) {
   const showChargebacks =
@@ -1895,9 +1970,10 @@ allChargebacks = [];
     });
 
     refreshButton.addEventListener("click", () => loadTransactions(false));
-    downloadButton.addEventListener("click", downloadCsv);
-    logoutButton.addEventListener("click", logout);
-    clearFiltersButton.addEventListener("click", clearFilters);
+downloadButton.addEventListener("click", downloadCsv);
+downloadInvoicesButton.addEventListener("click", downloadAllInvoices);
+logoutButton.addEventListener("click", logout);
+clearFiltersButton.addEventListener("click", clearFilters);
     searchInput.addEventListener("input", applyFilters);
     statusFilter.addEventListener("change", applyFilters);
     planFilter.addEventListener("change", applyFilters);
