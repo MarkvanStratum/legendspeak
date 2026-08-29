@@ -5027,39 +5027,7 @@ try {
     receiptNumber
   });
 
-  await sendEmail(
-    payment.email,
-    "Your Legend Speak payment receipt",
-    `
-    <h2>Payment received</h2>
-
-    <p>
-      Thank you for your payment.
-    </p>
-
-    <p>
-      <strong>Product:</strong>
-      ${productName}
-    </p>
-
-    <p>
-      <strong>Amount:</strong>
-      £${Number(payment.amount).toFixed(2)}
-    </p>
-
-    <p>
-      Your payment receipt is attached.
-    </p>
-    `,
-    [
-      {
-        filename:
-          `${receiptNumber}.pdf`,
-        content:
-          receiptPdf.toString("base64")
-      }
-    ]
-  );
+  
 
   console.log(
     "✅ RECEIPT PROCESS COMPLETED:",
