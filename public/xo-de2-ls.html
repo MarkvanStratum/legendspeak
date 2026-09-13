@@ -194,8 +194,7 @@ margin-bottom:18px;
 width:100%;
 height:12px;
 background:#ecf1f8;
-border-radius:999px;
-overflow:hidden;
+border-radius:999px;overflow:hidden;
 }
 
 .progress-bar{
@@ -215,7 +214,7 @@ animation:loadingBar 2.2s ease-in-out infinite;
 
 <body>
 
-<div class="safe">Sichere SSL-Kasse</div>
+<div class="safe">Sichere SSL-Verschlüsselung</div>
 
 <div class="wrap">
 
@@ -228,12 +227,12 @@ Sichere Zahlung 🔒 <span class="stars">★★★★★</span>
 
 <div class="card">
 
-<div class="h2">2. Zahlung</div>
+<div class="h2">2. Zahlungsinformationen</div>
 <p class="sub">Karteninformationen werden verschlüsselt und sicher verarbeitet.</p>
 
 <div style="margin-top:14px;">
     <label for="cardholder-name" style="display:block;font-weight:700;margin-bottom:6px;">
-        Vollständiger Name des Karteninhabers
+        Karteninhaber (Vollständiger Name)
     </label>
     <input
         type="text"
@@ -257,7 +256,7 @@ Sichere Zahlung 🔒 <span class="stars">★★★★★</span>
 
 <div style="margin-top:14px;">
     <label style="display:block;font-weight:700;margin-bottom:6px;">
-        CVV
+        Sicherheitscode (CVV)
     </label>
     <div
         id="cvv_div"
@@ -268,7 +267,7 @@ Sichere Zahlung 🔒 <span class="stars">★★★★★</span>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;">
     <div>
         <label for="exp_month" style="display:block;font-weight:700;margin-bottom:6px;">
-            Ablaufmonat
+            Ablaufdatum (Monat)
         </label>
         <input
             type="text"
@@ -283,13 +282,13 @@ Sichere Zahlung 🔒 <span class="stars">★★★★★</span>
 
     <div>
         <label for="exp_year" style="display:block;font-weight:700;margin-bottom:6px;">
-            Ablaufjahr
+            Ablaufdatum (Jahr)
         </label>
         <input
             type="text"
             id="exp_year"
             class="el"
-            placeholder="JJJJ"
+            placeholder="YYYY"
             inputmode="numeric"
             autocomplete="cc-exp-year"
             required
@@ -317,31 +316,31 @@ style="font-weight:900;font-size:18px"></div>
 </div>
 
 <div class="widget">
-<div style="text-align:center;font-weight:800">Kundenbewertungen</div>
+<div style="text-align:center;font-weight:800">Kundenmeinungen</div>
 <div style="text-align:center;font-weight:700;">Fenella Lara</div>
 <div style="text-align:center;color:#f6b80c;">★★★★★</div>
-<p style="text-align:center">Ich habe mein Produkt gestern erhalten. Tolle Erfahrung!</p>
+<p style="text-align:center">Artikel ist gestern sicher angekommen. Sehr guter Service!</p>
 </div>
 
 <div class="widget">
 <div class="delivery">
 <div>
-<div style="font-weight:800">Schnelle Lieferung</div>
-<div class="sub">3–5 Werktage</div>
+<div style="font-weight:800">Schnellversand</div>
+<div class="sub">Lieferung in 3-5 Werktagen</div>
 </div>
 <div style="margin-left:auto;font-weight:800">Kostenlos</div>
 </div>
 
 <div style="margin-top:14px;font-weight:800">Bestellübersicht</div>
-<div class="order-row"><span>Gesamtsumme</span><span>2,00 €</span></div>
+<div class="order-row"><span>Gesamtsumme</span><span>2 €</span></div>
 </div>
 
 <div class="widget">
-<div style="font-weight:800;margin-bottom:10px">Warum Sie uns vertrauen können</div>
+<div style="font-weight:800;margin-bottom:10px">Ihre Vorteile</div>
 <div class="trust">
-<div class="box"><div>⭐</div><div>99% positive Bewertungen</div></div>
-<div class="box"><div>🔒</div><div>SSL-gesichert</div></div>
-<div class="box"><div>🛡️</div><div>250.000 € Absicherung</div></div>
+<div class="box"><div>⭐</div><div>99% Positive Bewertungen</div></div>
+<div class="box"><div>🔒</div><div>SSL-Schutz</div></div>
+<div class="box"><div>🛡️</div><div>$250.000 Käuferschutz</div></div>
 </div>
 </div>
 
@@ -354,7 +353,7 @@ style="font-weight:900;font-size:18px"></div>
 <div class="loading-box">
 <div class="loading-title">Zahlung wird verarbeitet…</div>
 <div class="progress-wrap"><div class="progress-bar"></div></div>
-<p class="sub" style="margin-top:10px">Bitte warten Sie einige Sekunden…</p>
+<p class="sub" style="margin-top:10px">Bitte warten Sie einen Moment…</p>
 </div>
 </div>
 
@@ -429,7 +428,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     if (!publicIntegrationKey) {
-        showError("Zahlungskonfiguration fehlt.");
+        showError("Zahlungskonfiguration konnte nicht gefunden werden.");
         payNow.disabled = true;
         return;
     }
@@ -502,7 +501,7 @@ payNow.onclick = () => {
 
     if (!paymentReady || !payment) {
         showError(
-            "Zahlungsfelder werden noch geladen. Bitte warten."
+            "Zahlungsfelder werden geladen. Bitte warten Sie einen Moment."
         );
         return;
     }
@@ -527,7 +526,7 @@ payNow.onclick = () => {
 
     if (!cardholderName || !expMonth || !expYear) {
         showError(
-            "Bitte füllen Sie alle Kartendetails aus."
+            "Bitte füllen Sie alle Karteninformationen aus."
         );
         return;
     }
@@ -577,7 +576,7 @@ payNow.onclick = () => {
                 } catch {
                     throw new Error(
                         text ||
-                        "Der Server hat eine ungültige Antwort zurückgegeben."
+                        "Ungültige Antwort vom Server erhalten."
                     );
                 }
 
@@ -600,37 +599,25 @@ payNow.onclick = () => {
                 }
 
                 if (
-                    data.returnType === "REDIRECT" &&
-                    data.redirectUrl
-                ) {
-                    window.location.href =
-                        data.redirectUrl;
+    data.returnType === "REDIRECT" &&
+    data.redirectUrl
+) {
+    window.location.href =
+        data.redirectUrl;
 
-                    return;
-                }
+    return;
+}
 
-                const qs =
-                    new URLSearchParams(
-                        location.search
-                    );
+if (data.paymentResultUrl) {
+    window.location.href =
+        data.paymentResultUrl;
 
-                const affiliateRef =
-                    qs.get("ref") || "";
+    return;
+}
 
-                const sub1 =
-                    qs.get("sub1") || "";
-
-                const sub2 =
-                    qs.get("sub2") || "";
-
-                window.location.href =
-                    "https://cudsr.bemobtrcks.com/go/abc281a7-e82a-411b-8b56-1a0228d7d2e7?" +
-                    "ref=" +
-                    encodeURIComponent(affiliateRef) +
-                    "&sub1=" +
-                    encodeURIComponent(sub1) +
-                    "&sub2=" +
-                    encodeURIComponent(sub2);
+throw new Error(
+    "Zahlungsstatus konnte nicht überprüft werden."
+);
 
             } catch (error) {
                 console.error(
@@ -661,10 +648,10 @@ payNow.onclick = () => {
                         .map(error =>
                             error.message ||
                             error.key ||
-                            "Fehler im Zahlungsfeld"
+                            "Karteneingabefehler"
                         )
                         .join(" ")
-                    : "Bitte überprüfen Sie Ihre Kartendetails.";
+                    : "Bitte überprüfen Sie Ihre Kartendaten.";
 
             showError(message);
         }
