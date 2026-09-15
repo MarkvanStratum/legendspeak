@@ -297,7 +297,7 @@ nextBtn.onclick = async () => {
     if (data.url.startsWith("http://") || data.url.startsWith("https://")) {
       targetUrl = new URL(data.url);
     } else {
-      targetUrl = new URL(data.url, "https://www.legendspeak.net");
+      targetUrl = new URL(data.url, "https://legendspeak.net");
     }
 
     if (affiliateRef) targetUrl.searchParams.set("ref", affiliateRef);
