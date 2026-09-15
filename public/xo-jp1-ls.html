@@ -276,7 +276,7 @@ nextBtn.onclick = async () => {
     nextBtn.textContent = "安全な決済ページを作成中…";
     overlay.setAttribute("aria-hidden", "false");
 
-    const response = await fetch("https://www.legendspeak.net/api/create-promo-checkout-link", {
+    const response = await fetch("/api/create-promo-checkout-link", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -314,7 +314,7 @@ nextBtn.onclick = async () => {
     }
 
     let nextUrl =
-  "https://www.legendspeak.net" +
+  "https://legendspeak.net" +
   data.url +
   "?ref=" + encodeURIComponent(affiliateRef) +
   "&sub1=" + encodeURIComponent(qs.get("sub1") || "") +
