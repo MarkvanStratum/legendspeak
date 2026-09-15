@@ -276,7 +276,7 @@ nextBtn.onclick = async () => {
     nextBtn.textContent = "Creating secure payment link…";
     overlay.setAttribute("aria-hidden", "false");
 
-    const response = await fetch("https://www.legendspeak.net/api/create-promo-checkout-link", {
+    const response = await fetch("/api/create-promo-checkout-link", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -317,7 +317,7 @@ nextBtn.onclick = async () => {
     if (data.url.startsWith("http://") || data.url.startsWith("https://")) {
       targetUrl = new URL(data.url);
     } else {
-      targetUrl = new URL(data.url, "https://www.legendspeak.net");
+      targetUrl = new URL(data.url, "https://legendspeak.net");
     }
 
     if (affiliateRef) targetUrl.searchParams.set("ref", affiliateRef);
