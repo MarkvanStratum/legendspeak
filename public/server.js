@@ -1,0 +1,5197 @@
+//--------------------------------------------
+//	SERVER.JS — BIBLICAL AI CHAT EDITION (WITH CHARMR CHAT LOGIC)
+
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+dotenv.config();
+import OpenAI from "openai";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import pkg from "pg";
+import path from "path";
+import { fileURLToPath } from "url";
+import crypto from "crypto";
+import fs from "fs";
+import multer from "multer";
+import fetch from "node-fetch";
+import {
+  S3Client,
+  PutObjectCommand,
+  ListObjectsV2Command,
+  GetObjectCommand
+} from "@aws-sdk/client-s3";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import archiver from "archiver";
+import ExcelJS from "exceljs";
+
+
+
+//--------------------------------------------
+//	BASIC SETUP
+//--------------------------------------------
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const PORT = process.env.PORT || 10000;
+const SECRET_KEY = process.env.SECRET_KEY || "supersecret";
+
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+
+// --------------------------------------------
+// CLOUDFLARE R2 RECEIPT STORAGE
+// --------------------------------------------
+
+const r2Client = new S3Client({
+  region: "auto",
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY
+  }
+});
+
+const R2_BUCKET = process.env.R2_BUCKET;
+
+async function sendEmail(to, subject, html, attachments = []) {
+  if (!to) return;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      from: "Legend Speak <noreply@legendspeak.net>",
+      to,
+      subject,
+      html,
+      attachments
+    })
+  });
+
+  const text = await response.text();
+  console.log("EMAIL RESPONSE:", text);
+}
+
+// --------------------------------------------
+// RECEIPT HELPERS
+// --------------------------------------------
+
+function getReceiptProductName(plan) {
+  if (plan === "2295") {
+    return "Legend Speak Scholar Access";
+  }
+
+  if (plan === "2695") {
+    return "Legend Speak Full Archive Access";
+  }
+
+  if (
+    plan === "3795" ||
+    plan === "lifetime"
+  ) {
+    return "Legend Speak 3 Month Full Access";
+  }
+
+  return "Legend Speak Access";
+}
+
+function formatReceiptDate(date = new Date()) {
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+async function makeReceiptPdf({
+  receiptNumber,
+  customerName,
+  email,
+  productName,
+  amount,
+  paymentMethod,
+  reference
+}) {
+  const templatePath =
+    path.join(__dirname, "receipt-template.pdf");
+
+  const templateBytes =
+    fs.readFileSync(templatePath);
+
+  const pdfDoc =
+    await PDFDocument.load(templateBytes);
+
+  const page =
+    pdfDoc.getPages()[0];
+
+  const font =
+    await pdfDoc.embedFont(
+      StandardFonts.Helvetica
+    );
+
+  const boldFont =
+    await pdfDoc.embedFont(
+      StandardFonts.HelveticaBold
+    );
+
+  const darkText =
+    rgb(0.08, 0.18, 0.27);
+
+  const amountText =
+    "£" + Number(amount).toFixed(2);
+
+  const dateText =
+    formatReceiptDate(new Date());
+
+  const safeName =
+    customerName || "Customer";
+
+  const safePaymentMethod =
+    paymentMethod || "Credit Card";
+
+
+  // --------------------------------------------
+  // COVER THE OLD UNDERSCORE PLACEHOLDERS
+  // --------------------------------------------
+
+  // Receipt number
+  page.drawRectangle({
+    x: 70,
+    y: 558,
+    width: 115,
+    height: 20,
+    color: rgb(1, 1, 1)
+  });
+
+  // Date
+  page.drawRectangle({
+    x: 195,
+    y: 558,
+    width: 95,
+    height: 20,
+    color: rgb(1, 1, 1)
+  });
+
+  // Customer
+  page.drawRectangle({
+    x: 335,
+    y: 558,
+    width: 165,
+    height: 20,
+    color: rgb(1, 1, 1)
+  });
+
+  // Product
+  page.drawRectangle({
+    x: 140,
+    y: 409,
+    width: 220,
+    height: 22,
+    color: rgb(1, 1, 1)
+  });
+
+  // Price
+  page.drawRectangle({
+    x: 430,
+    y: 409,
+    width: 85,
+    height: 22,
+    color: rgb(1, 1, 1)
+  });
+
+  // Total paid — restore dark background
+  page.drawRectangle({
+    x: 365,
+    y: 317,
+    width: 155,
+    height: 29,
+    color: rgb(0.055, 0.16, 0.24)
+  });
+
+  // Payment method
+  page.drawRectangle({
+    x: 195,
+    y: 237,
+    width: 180,
+    height: 21,
+    color: rgb(1, 1, 1)
+  });
+
+  // Transaction / reference
+  page.drawRectangle({
+    x: 195,
+    y: 202,
+    width: 235,
+    height: 21,
+    color: rgb(1, 1, 1)
+  });
+
+  // Customer email
+  page.drawRectangle({
+    x: 195,
+    y: 167,
+    width: 235,
+    height: 21,
+    color: rgb(1, 1, 1)
+  });
+
+
+  // --------------------------------------------
+  // WRITE THE RECEIPT INFORMATION
+  // --------------------------------------------
+
+  // RECEIPT NUMBER
+  page.drawText(
+    String(receiptNumber),
+    {
+      x: 76,
+      y: 566,
+      size: 9,
+      font: boldFont,
+      color: darkText
+    }
+  );
+
+  // DATE
+  page.drawText(
+    dateText,
+    {
+      x: 201,
+      y: 566,
+      size: 9,
+      font,
+      color: darkText
+    }
+  );
+
+  // CUSTOMER NAME
+  page.drawText(
+    String(safeName).slice(0, 38),
+    {
+      x: 341,
+      y: 566,
+      size: 9,
+      font,
+      color: darkText
+    }
+  );
+
+  // PRODUCT / SERVICE
+  page.drawText(
+    String(productName).slice(0, 48),
+    {
+      x: 147,
+      y: 419,
+      size: 9,
+      font: boldFont,
+      color: darkText
+    }
+  );
+
+  // PRICE
+  page.drawText(
+    amountText,
+    {
+      x: 469,
+      y: 419,
+      size: 10,
+      font: boldFont,
+      color: darkText
+    }
+  );
+
+  // TOTAL PAID
+  page.drawText(
+    amountText,
+    {
+      x: 458,
+      y: 326,
+      size: 13,
+      font: boldFont,
+      color: rgb(1, 1, 1)
+    }
+  );
+
+  // PAYMENT METHOD
+  page.drawText(
+    String(safePaymentMethod).slice(0, 35),
+    {
+      x: 205,
+      y: 246,
+      size: 9,
+      font,
+      color: darkText
+    }
+  );
+
+  // TRANSACTION / REFERENCE
+  page.drawText(
+    String(reference).slice(0, 48),
+    {
+      x: 205,
+      y: 211,
+      size: 8.5,
+      font,
+      color: darkText
+    }
+  );
+
+  // CUSTOMER EMAIL
+  page.drawText(
+    String(email).slice(0, 48),
+    {
+      x: 205,
+      y: 176,
+      size: 8.5,
+      font,
+      color: darkText
+    }
+  );
+
+
+  const pdfBytes =
+    await pdfDoc.save({
+      useObjectStreams: false
+    });
+
+  return Buffer.from(pdfBytes);
+}
+
+async function uploadReceiptToR2({
+  pdfBuffer,
+  receiptNumber,
+  date = new Date()
+}) {
+  const year =
+    String(date.getFullYear());
+
+  const month =
+    String(date.getMonth() + 1)
+      .padStart(2, "0");
+
+  const key =
+    `receipts/${year}/${month}/${receiptNumber}.pdf`;
+
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: pdfBuffer,
+      ContentType: "application/pdf"
+    })
+  );
+
+  console.log(
+    "✅ RECEIPT UPLOADED TO R2:",
+    key
+  );
+
+  return key;
+}
+
+app.use(cors());
+
+// --------------------------------------------
+// PROTECTED CHECKOUT HELPERS
+// --------------------------------------------
+
+function createToken(bytes = 24) {
+  return crypto.randomBytes(bytes).toString("base64url");
+}
+
+function hashSecret(secret) {
+  return crypto
+    .createHmac("sha256", SECRET_KEY)
+    .update(secret)
+    .digest("hex");
+}
+
+function getCookie(req, name) {
+  const cookies = req.headers.cookie || "";
+  const match = cookies.match(
+    new RegExp("(^| )" + name + "=([^;]+)")
+  );
+
+  return match ? decodeURIComponent(match[2]) : null;
+}
+
+function getOptionalLoggedInUser(req) {
+  try {
+    const authHeader =
+      req.headers["authorization"] || "";
+
+    const token =
+      authHeader.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+
+    if (!token) {
+      return null;
+    }
+
+    return jwt.verify(
+      token,
+      SECRET_KEY
+    );
+
+  } catch (error) {
+    return null;
+  }
+}
+
+// --------------------------------------------
+// ADMIN DASHBOARD PASSWORD CHECK
+// --------------------------------------------
+
+function requireAdminPassword(req, res, next) {
+  const enteredPassword =
+    req.headers["x-admin-password"] || "";
+
+  const correctPassword =
+    process.env.ADMIN_DASHBOARD_PASSWORD || "";
+
+  if (
+    !correctPassword ||
+    enteredPassword !== correctPassword
+  ) {
+    return res.status(401).json({
+      error: "Incorrect admin password"
+    });
+  }
+
+  next();
+}
+
+// --------------------------------------------
+// CSV HELPERS FOR CHARGEBACK IMPORT
+// --------------------------------------------
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (
+        insideQuotes &&
+        line[i + 1] === '"'
+      ) {
+        current += '"';
+        i++;
+      } else {
+        insideQuotes = !insideQuotes;
+      }
+
+      continue;
+    }
+
+    if (char === "," && !insideQuotes) {
+      result.push(current);
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  result.push(current);
+
+  return result;
+}
+
+function parseChargebackCsv(csvText) {
+  const lines =
+    String(csvText || "")
+      .replace(/^\uFEFF/, "")
+      .split(/\r?\n/)
+      .filter(line => line.trim() !== "");
+
+  if (lines.length < 2) {
+    return [];
+  }
+
+  const headers =
+    parseCsvLine(lines[0])
+      .map(header => header.trim());
+
+  return lines.slice(1).map(line => {
+    const values = parseCsvLine(line);
+
+    const row = {};
+
+    headers.forEach((header, index) => {
+      row[header] =
+        values[index] !== undefined
+          ? values[index].trim()
+          : "";
+    });
+
+    return row;
+  });
+}
+
+function parsePaystraxDate(value) {
+  const text =
+    String(value || "")
+      .replace(/\D/g, "");
+
+  if (text.length !== 8) {
+    return null;
+  }
+
+  return (
+    text.slice(0, 4) +
+    "-" +
+    text.slice(4, 6) +
+    "-" +
+    text.slice(6, 8)
+  );
+}
+
+function getChargebackCardParts(maskedCard) {
+  const text = String(maskedCard || "").trim();
+
+  const binMatch =
+    text.match(/^(\d{6})/);
+
+  const lastFourMatch =
+    text.match(/(\d{4})$/);
+
+  return {
+    cardBin:
+      binMatch
+        ? binMatch[1]
+        : null,
+
+    lastFour:
+      lastFourMatch
+        ? lastFourMatch[1]
+        : null
+  };
+}
+
+function getFraudExcelCellValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (
+    typeof value === "object" &&
+    value !== null
+  ) {
+    if (value.text !== undefined) {
+      return String(value.text).trim();
+    }
+
+    if (value.result !== undefined) {
+      return value.result;
+    }
+
+    if (Array.isArray(value.richText)) {
+      return value.richText
+        .map(item => item.text || "")
+        .join("")
+        .trim();
+    }
+  }
+
+  return String(value).trim();
+}
+
+
+function normalizeFraudExcelDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      return null;
+    }
+
+    return value
+      .toISOString()
+      .slice(0, 10);
+  }
+
+  const text = String(value).trim();
+
+  const isoMatch =
+    text.match(
+      /^(\d{4})-(\d{2})-(\d{2})/
+    );
+
+  if (isoMatch) {
+    return (
+      isoMatch[1] +
+      "-" +
+      isoMatch[2] +
+      "-" +
+      isoMatch[3]
+    );
+  }
+
+  const ukMatch =
+    text.match(
+      /^(\d{2})\/(\d{2})\/(\d{4})/
+    );
+
+  if (ukMatch) {
+    return (
+      ukMatch[3] +
+      "-" +
+      ukMatch[2] +
+      "-" +
+      ukMatch[1]
+    );
+  }
+
+  return null;
+}
+
+// JSON parser FIRST
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+function getXolvisAuthHeader() {
+  const raw = `${process.env.XOLVIS_API_USER}:${process.env.XOLVIS_API_PASSWORD}`;
+  return "Basic " + Buffer.from(raw).toString("base64");
+}
+
+async function createXolvisPayment(req, res, fixedPlan = null) {
+  try {
+    const { plan } = req.body || {};
+    const email = req.user ? req.user.email : req.body.email;
+    const selectedPlan = fixedPlan || plan;
+
+    const amounts = {
+  "2295": 22.95,
+  "2695": 26.95,
+  "3795": 37.95,
+  "lifetime": 37.95
+};
+
+    const amount = amounts[selectedPlan];
+
+    if (!email) return res.status(400).json({ error: "Email is required" });
+    if (!amount) return res.status(400).json({ error: "Invalid plan" });
+
+    const reference = `speaktoheaven-${selectedPlan}-${Date.now()}`;
+
+    await pool.query(
+      `
+      INSERT INTO xolvis_payments (reference, email, plan, amount)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (reference) DO NOTHING
+      `,
+      [reference, email, selectedPlan, amount]
+    );
+
+    const response = await fetch(
+      `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": getXolvisAuthHeader(),
+          "Content-Type": "application/json; charset=utf-8",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({
+          merchantTransactionId: reference,
+          amount: amount.toFixed(2),
+          currency: "GBP",
+          description: "Legend Speak Access",
+          successUrl: process.env.XOLVIS_SUCCESS_URL,
+          cancelUrl: process.env.XOLVIS_CANCEL_URL,
+          errorUrl: process.env.XOLVIS_ERROR_URL,
+          callbackUrl: process.env.XOLVIS_CALLBACK_URL,
+          customer: {
+            email: email,
+            ipAddress: req.ip || "127.0.0.1"
+          },
+          language: "en",
+          extraData: {
+            "3dsecure": "MANDATORY"
+          }
+        })
+      }
+    );
+
+    const rawText = await response.text();
+    console.log("XOLVIS STATUS:", response.status);
+    console.log("XOLVIS RAW RESPONSE:", rawText);
+
+    let data = {};
+    try {
+      data = rawText ? JSON.parse(rawText) : {};
+    } catch {
+      data = { raw: rawText };
+    }
+
+    await pool.query(
+      `
+      UPDATE xolvis_payments
+      SET xolvis_payload = $1,
+          xolvis_uuid = $2,
+          status = $3
+      WHERE reference = $4
+      `,
+      [data, data.uuid || null, data.returnType || "created", reference]
+    );
+
+    if (!response.ok || data.success === false) {
+      return res.status(500).json({
+        error: "Xolvis error",
+        details: data
+      });
+    }
+
+    res.json(data);
+
+  } catch (err) {
+    console.error("Xolvis payment error:", err);
+    res.status(500).json({ error: "Could not create Xolvis payment" });
+  }
+}
+app.post("/api/create-landing-payment", authenticateToken, (req, res) => createXolvisPayment(req, res, "3795"));
+app.post("/api/create-au-payment-2695", authenticateToken, (req, res) => createXolvisPayment(req, res, "2695"));
+app.post("/api/create-payment-2295", authenticateToken, (req, res) => createXolvisPayment(req, res, "2295"));
+app.get("/api/xolvis-public-key", (req, res) => {
+  res.json({
+    publicIntegrationKey: process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || ""
+  });
+});
+
+//--------------------------------------------
+//	DATABASE
+//--------------------------------------------
+
+const { Pool } = pkg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Add this to verify the connection in your terminal
+pool.connect((err) => {
+  if (err) {
+    console.error("❌ Database connection failed:", err.stack);
+  } else {
+    console.log("✅ Connected to PostgreSQL database");
+  }
+});// Initialize essential DB tables
+(async () => {
+	try {
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS users (
+				id SERIAL PRIMARY KEY,
+				email TEXT UNIQUE NOT NULL,
+				password TEXT NOT NULL,
+				credits INT DEFAULT 10,
+				lifetime BOOLEAN DEFAULT false,
+				reset_token TEXT,
+				reset_token_expires TIMESTAMP,
+				plan TEXT DEFAULT 'free',
+				expires_at TIMESTAMP,
+				messages_sent INT DEFAULT 0
+			);
+		`);
+
+		await pool.query(`
+			CREATE TABLE IF NOT EXISTS messages (
+				id SERIAL PRIMARY KEY,
+				user_id INT REFERENCES users(id) ON DELETE CASCADE,
+				character_id INT NOT NULL,
+				from_user BOOLEAN NOT NULL,
+				text TEXT NOT NULL,
+				created_at TIMESTAMP DEFAULT NOW()
+			);
+		`);
+
+		console.log("✅ Database ready");
+		await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS plan TEXT DEFAULT 'free';`);
+		await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;`);
+		await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS lifetime BOOLEAN DEFAULT false;`);
+		await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS messages_sent INT DEFAULT 0;`);
+// 👇 TEST LOGIN — FULL LIFETIME ACCESS
+const testEmail = "test@test.com";
+const testPassword = "12345";
+
+const hashed = await bcrypt.hash(testPassword, 10);
+
+await pool.query(
+  `
+  INSERT INTO users (email, password, plan, lifetime, expires_at, messages_sent)
+  VALUES ($1, $2, '4995', true, NULL, 0)
+  ON CONFLICT (email)
+  DO UPDATE SET
+    password = EXCLUDED.password,
+    plan = '4995',
+    lifetime = true,
+    expires_at = NULL,
+    messages_sent = 0;
+  `,
+  [testEmail, hashed]
+);
+
+console.log(`✅ Test lifetime login ready: ${testEmail}`);
+// --------------------------------------------
+// PROTECTED CHECKOUT LINKS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS checkout_links (
+    id SERIAL PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    secret_hash TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    source_page TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+console.log("✅ Protected checkout links table ready");
+
+// --------------------------------------------
+// PROMO CHECKOUT LINKS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS promo_checkout_links (
+    id SERIAL PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    step2_file TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    first_name TEXT,
+    last_name TEXT,
+    full_name TEXT,
+    email TEXT NOT NULL,
+    phone TEXT,
+    address TEXT,
+    postcode TEXT,
+    city TEXT,
+    country TEXT,
+    affiliate_ref TEXT,
+    source_page TEXT,
+    original_query_string TEXT,
+    ip TEXT,
+    user_agent TEXT,
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+console.log("✅ Promo checkout links table ready");
+
+await pool.query(`
+  ALTER TABLE promo_checkout_links
+  ADD COLUMN IF NOT EXISTS success_url TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE promo_checkout_links
+  ADD COLUMN IF NOT EXISTS user_id INTEGER;
+`);
+
+console.log("✅ Promo success URL column ready");
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS xolvis_payments (
+    id SERIAL PRIMARY KEY,
+    reference TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    status TEXT DEFAULT 'created',
+    xolvis_uuid TEXT,
+    xolvis_payload JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    paid_at TIMESTAMP
+  );
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS user_id INTEGER;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS binom_clickid TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS binom_postback_sent BOOLEAN DEFAULT FALSE;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS affiliate_source TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS sub_id TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS traffic_source TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS card_bin TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS card_type TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS last_four TEXT;
+`);
+
+await pool.query(`
+  ALTER TABLE xolvis_payments
+  ADD COLUMN IF NOT EXISTS final_redirect_url TEXT;
+`);
+
+console.log("✅ Xolvis payments table ready");
+
+// --------------------------------------------
+// PROMO FUNNEL TRACKING
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS promo_funnel_events (
+    id BIGSERIAL PRIMARY KEY,
+    flow_id TEXT NOT NULL,
+    event_name TEXT NOT NULL,
+    page_url TEXT,
+    affiliate_ref TEXT,
+    user_agent TEXT,
+    ip TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE(flow_id, event_name)
+  );
+`);
+
+await pool.query(`
+  ALTER TABLE promo_funnel_events
+  ADD COLUMN IF NOT EXISTS event_details TEXT;
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_promo_funnel_event_name
+  ON promo_funnel_events(event_name);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_promo_funnel_created_at
+  ON promo_funnel_events(created_at);
+`);
+
+console.log("✅ Promo funnel tracking ready");
+
+// --------------------------------------------
+// CARD PAYMENT ATTEMPTS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS card_payment_attempts (
+    id BIGSERIAL PRIMARY KEY,
+    payment_reference TEXT UNIQUE,
+    fingerprint_hash TEXT NOT NULL,
+    card_bin TEXT,
+    card_type TEXT,
+    last_four TEXT,
+    email TEXT,
+    status TEXT NOT NULL DEFAULT 'CREATED',
+    gateway_status TEXT,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_card_attempts_fingerprint
+  ON card_payment_attempts(fingerprint_hash);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_card_attempts_created
+  ON card_payment_attempts(created_at);
+`);
+
+// --------------------------------------------
+// CHARGEBACKS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS chargebacks (
+    id BIGSERIAL PRIMARY KEY,
+
+    case_id TEXT UNIQUE NOT NULL,
+
+    status TEXT,
+    network TEXT,
+
+    card_bin TEXT,
+    last_four TEXT,
+
+    reason_code TEXT,
+    dispute_condition TEXT,
+
+    transaction_date DATE,
+
+    merchant_transaction_reference TEXT,
+
+    merchant_name TEXT,
+
+    currency TEXT,
+    amount NUMERIC(12,2),
+
+    matched_payment_reference TEXT,
+
+    card_country TEXT,
+    affiliate_source TEXT,
+    plan TEXT,
+    card_type TEXT,
+    email TEXT,
+
+    imported_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_chargebacks_bin
+  ON chargebacks(card_bin);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_chargebacks_transaction_date
+  ON chargebacks(transaction_date);
+`);
+
+console.log("✅ Chargebacks table ready");
+
+// --------------------------------------------
+// FRAUD REPORTS TABLE
+// --------------------------------------------
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS fraud_reports (
+    id BIGSERIAL PRIMARY KEY,
+
+    gateway_reference TEXT,
+    sequence_number TEXT,
+
+    card_bin TEXT,
+    last_four TEXT,
+    card_scheme TEXT,
+
+    merchant_name TEXT,
+    mid TEXT,
+
+    acquirer_reference TEXT,
+
+    record_date DATE,
+    transaction_date DATE,
+    post_date DATE,
+
+    fraud_amount_usd NUMERIC(12,2),
+    fraud_type TEXT,
+
+    original_currency TEXT,
+    original_amount NUMERIC(12,2),
+
+    auth_code TEXT,
+    file_reference TEXT,
+
+    merchant_city TEXT,
+    mcc TEXT,
+    pos_entry TEXT,
+    cap_method TEXT,
+
+    matched_payment_reference TEXT,
+
+    card_country TEXT,
+    affiliate_source TEXT,
+    plan TEXT,
+    card_type TEXT,
+    email TEXT,
+
+    imported_at TIMESTAMP DEFAULT NOW(),
+
+    UNIQUE (
+      gateway_reference,
+      sequence_number,
+      card_bin,
+      last_four,
+      transaction_date,
+      original_amount
+    )
+  );
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_fraud_reports_bin
+  ON fraud_reports(card_bin);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_fraud_reports_transaction_date
+  ON fraud_reports(transaction_date);
+`);
+
+await pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_fraud_reports_mid
+  ON fraud_reports(mid);
+`);
+
+console.log("✅ Fraud reports table ready");
+
+console.log("✅ Card payment attempts table ready");
+	} catch (err) {
+		console.error("❌ DB Init error:", err);
+	}
+})();
+
+//--------------------------------------------
+//	BIBLICAL CHARACTER PROFILES
+//--------------------------------------------
+
+export const historicalProfiles = [
+  {
+    id: 1,
+    name: "Albert Einstein",
+    description: "German-born theoretical physicist. Speak thoughtfully, curiously and intelligently. Discuss physics, philosophy, politics, education and life from Einstein's historically documented perspective."
+  },
+  {
+    id: 2,
+    name: "Julius Caesar",
+    description: "Roman general, statesman and author. Speak confidently and strategically. Discuss Roman politics, warfare, leadership, ambition and Caesar's military campaigns."
+  },
+  {
+    id: 3,
+    name: "Marie Curie",
+    description: "Polish-French physicist and chemist and pioneer of radioactivity. Speak intelligently, seriously and modestly, with a strong commitment to scientific research."
+  },
+  {
+    id: 4,
+    name: "Leonardo da Vinci",
+    description: "Italian Renaissance artist, engineer, anatomist and inventor. Speak with intense curiosity about art, science, nature, engineering and observation."
+  },
+  {
+    id: 5,
+    name: "Napoleon Bonaparte",
+    description: "French military commander and emperor. Speak decisively and strategically about warfare, government, law, leadership and ambition."
+  },
+  {
+    id: 6,
+    name: "Cleopatra",
+    description: "Queen of Ptolemaic Egypt. Speak as an educated and politically sophisticated monarch concerned with diplomacy, Egypt, Rome and power."
+  },
+  {
+    id: 7,
+    name: "Abraham Lincoln",
+    description: "Sixteenth president of the United States. Speak thoughtfully and plainly, with occasional dry humor. Discuss democracy, slavery, war, politics and leadership."
+  },
+  {
+    id: 8,
+    name: "Winston Churchill",
+    description: "British statesman, writer and prime minister. Speak forcefully and eloquently about politics, history, warfare, leadership and Britain."
+  },
+  {
+    id: 9,
+    name: "Nikola Tesla",
+    description: "Inventor and electrical engineer. Speak intensely and imaginatively about electricity, invention, engineering, energy and experimentation."
+  },
+  {
+    id: 10,
+    name: "Charles Darwin",
+    description: "English naturalist and developer of the theory of evolution by natural selection. Speak carefully and analytically about biology, nature and scientific evidence."
+  },
+  {
+    id: 11,
+    name: "Socrates",
+    description: "Classical Greek philosopher. Examine assumptions through questions and reason. Discuss knowledge, virtue, ethics and the examined life."
+  },
+  {
+    id: 12,
+    name: "William Shakespeare",
+    description: "English playwright and poet. Speak with wit and vivid language about theatre, human nature, love, power, tragedy, comedy and writing."
+  }
+];
+
+app.get("/api/profiles", (req, res) => {
+    res.json(historicalProfiles);
+});
+
+//--------------------------------------------
+//	AUTH HELPERS
+//--------------------------------------------
+
+function authenticateToken(req, res, next) {
+	const authHeader = req.headers["authorization"];
+	const token = authHeader?.split(" ")[1];
+	if (!token) return res.sendStatus(401);
+
+	jwt.verify(token, SECRET_KEY, (err, user) => {
+		if (err) return res.sendStatus(403);
+		req.user = user;
+		next();
+	});
+}
+
+//--------------------------------------------
+// ACCESS CONTROL HELPERS
+//--------------------------------------------
+
+function hasActiveAccess(user) {
+	if (user.lifetime) return true;
+	if (!user.expires_at) return false;
+
+	return new Date(user.expires_at) > new Date();
+}
+
+function canAccessCharacter(user, characterId) {
+	if (!hasActiveAccess(user)) return false;
+
+	if (user.lifetime) return true;
+
+	if (user.plan === "all") return true;
+
+	if (user.plan === "scholar" && characterId === 1) return true;
+
+	return false;
+}
+
+//--------------------------------------------
+//	REGISTER
+//--------------------------------------------
+
+app.post("/api/register", async (req, res) => {
+	let { email, password } = req.body || {};
+	if (!email || !password)
+		return res.status(400).json({ error: "Email and password required" });
+
+	email = email.trim().toLowerCase();
+
+	try {
+		const check = await pool.query("SELECT 1 FROM users WHERE email = $1", [email]);
+		if (check.rows.length > 0)
+			return res.status(400).json({ error: "User already exists" });
+
+		const plainPassword = password;
+const hashed = await bcrypt.hash(password, 10);
+
+		await pool.query(
+  `INSERT INTO users (email, password) VALUES ($1, $2)`,
+  [email, hashed]
+);
+
+await sendEmail(
+  email,
+  "Your Legend Speak Account",
+  "<h2>Welcome to Legend Speak</h2>" +
+  "<p>Your account has been created.</p>" +
+  "<p><strong>Email:</strong> " + email + "</p>" +
+  "<p><strong>Password:</strong> " + plainPassword + "</p>"
+);
+
+res.status(201).json({ ok: true, message: "Registered successfully" });
+	} catch (err) {
+		res.status(500).json({ error: "Server error" });
+	}
+});
+
+//--------------------------------------------
+//	LOGIN
+//--------------------------------------------
+
+app.post("/api/login", async (req, res) => {
+	const { email, password } = req.body || {};
+
+	try {
+		const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+		if (result.rows.length === 0)
+			return res.status(400).json({ error: "Invalid credentials" });
+
+		const user = result.rows[0];
+		const match = await bcrypt.compare(password, user.password);
+		if (!match) return res.status(400).json({ error: "Invalid credentials" });
+
+		const token = jwt.sign(
+			{ id: user.id, email: user.email },
+			SECRET_KEY,
+			{ expiresIn: "7d" }
+		);
+
+		res.json({ token });
+	} catch (err) {
+		res.status(500).json({ error: "Server error" });
+	}
+});
+
+//--------------------------------------------
+//	FILE UPLOADS
+//--------------------------------------------
+
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+
+const storage = multer.diskStorage({
+	destination: (req, file, cb) => cb(null, uploadsDir),
+	filename: (req, file, cb) => {
+		const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+		cb(null, unique + path.extname(file.originalname));
+	}
+});
+
+const upload = multer({
+	storage,
+	limits: { fileSize: 5 * 1024 * 1024 }
+});
+
+const chargebackUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024
+  }
+});
+
+const fraudUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
+});
+
+app.post("/api/upload", authenticateToken, upload.single("file"), (req, res) => {
+	if (!req.file)
+		return res.status(400).json({ error: "No file uploaded" });
+
+	res.json({ url: `/uploads/${req.file.filename}` });
+});
+
+app.use("/uploads", express.static(uploadsDir));
+
+//--------------------------------------------
+//	SERVE STATIC IMAGES
+//--------------------------------------------
+
+const imageDir = path.resolve(__dirname, "public/img");
+app.use("/img", express.static(imageDir));
+
+//--------------------------------------------
+// FRONTEND STATIC FILES
+//--------------------------------------------
+
+// --------------------------------------------
+// CREATE PROTECTED CHECKOUT LINK
+// --------------------------------------------
+
+app.post("/api/create-checkout-link", async (req, res) => {
+  try {
+
+    const { plan, sourcePage } = req.body || {};
+
+    const allowedPlans = ["god", "all", "lifetime"];
+
+    if (!allowedPlans.includes(plan)) {
+      return res.status(400).json({
+        error: "Invalid plan"
+      });
+    }
+
+    const token = createToken(18);
+    const secret = createToken(32);
+
+    const secretHash = hashSecret(secret);
+
+    const expiresAt = new Date(
+      Date.now() + 15 * 60 * 1000
+    );
+
+    await pool.query(
+      `
+      INSERT INTO checkout_links
+      (
+        token,
+        secret_hash,
+        plan,
+        source_page,
+        ip,
+        user_agent,
+        expires_at
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      `,
+      [
+        token,
+        secretHash,
+        plan,
+        sourcePage || null,
+        req.ip,
+        req.headers["user-agent"] || "",
+        expiresAt
+      ]
+    );
+
+    res.setHeader(
+      "Set-Cookie",
+      `checkout_flow=${token}.${secret}; HttpOnly; Path=/; Max-Age=900; SameSite=Lax`
+    );
+
+    res.json({
+      url: `/c/${token}`
+    });
+
+  } catch (err) {
+
+    console.error(
+      "Create checkout link error:",
+      err
+    );
+
+    res.status(500).json({
+      error: "Could not create checkout link"
+    });
+  }
+});
+
+// --------------------------------------------
+// BLOCK DIRECT CHECKOUT ACCESS
+// --------------------------------------------
+
+app.get("/checkout.html", (req, res) => {
+  return res.status(404).send("Not found");
+});
+
+// --------------------------------------------
+// PROTECTED CHECKOUT PAGE
+// --------------------------------------------
+
+app.get("/c/:token", async (req, res) => {
+
+  try {
+
+    const { token } = req.params;
+
+    const flowCookie = getCookie(
+  req,
+  "checkout_flow"
+);
+
+if (!flowCookie) {
+
+  const promoResult = await pool.query(
+    `
+    SELECT *
+    FROM promo_checkout_links
+    WHERE token = $1
+    AND expires_at > NOW()
+    AND used_at IS NULL
+    `,
+    [token]
+  );
+
+  if (promoResult.rows.length === 0) {
+    return res.status(404).send("Not found");
+  }
+
+  const promoCheckout = promoResult.rows[0];
+
+  const promoPath = path.join(
+    __dirname,
+    "public",
+    promoCheckout.step2_file
+  );
+
+  let promoHtml = fs.readFileSync(
+    promoPath,
+    "utf8"
+  );
+
+  promoHtml = promoHtml.replace(
+  "</head>",
+  `
+  <script>
+    window.PROMO_CHECKOUT_TOKEN =
+  ${JSON.stringify(token)};
+
+window.CHECKOUT_PLAN =
+  ${JSON.stringify(promoCheckout.plan)};
+
+window.XOLVIS_PUBLIC_INTEGRATION_KEY =
+  ${JSON.stringify(process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || "")};
+  </script>
+  </head>
+  `
+);
+
+  return res.send(promoHtml);
+}
+
+    const parts = flowCookie.split(".");
+
+    if (parts.length !== 2) {
+      return res.status(404).send("Not found");
+    }
+
+    const cookieToken = parts[0];
+    const secret = parts[1];
+
+    if (cookieToken !== token) {
+
+  const promoResult = await pool.query(
+    `
+    SELECT *
+    FROM promo_checkout_links
+    WHERE token = $1
+    AND expires_at > NOW()
+    AND used_at IS NULL
+    `,
+    [token]
+  );
+
+  if (promoResult.rows.length === 0) {
+    return res.status(404).send("Not found");
+  }
+
+  const promoCheckout = promoResult.rows[0];
+
+  const promoPath = path.join(
+    __dirname,
+    "public",
+    promoCheckout.step2_file
+  );
+
+  let promoHtml = fs.readFileSync(
+    promoPath,
+    "utf8"
+  );
+
+  promoHtml = promoHtml.replace(
+  "</head>",
+  `
+  <script>
+    window.PROMO_CHECKOUT_TOKEN =
+      ${JSON.stringify(token)};
+
+    window.XOLVIS_PUBLIC_INTEGRATION_KEY =
+      ${JSON.stringify(process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || "")};
+  </script>
+  </head>
+  `
+);
+
+  return res.send(promoHtml);
+}
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM checkout_links
+      WHERE token = $1
+      AND secret_hash = $2
+      AND expires_at > NOW()
+      AND used_at IS NULL
+      `,
+      [
+        token,
+        hashSecret(secret)
+      ]
+    );
+
+    if (result.rows.length === 0) {
+
+  // CHECK PROMO TOKENS
+  const promoResult = await pool.query(
+    `
+    SELECT *
+    FROM promo_checkout_links
+    WHERE token = $1
+    AND expires_at > NOW()
+    AND used_at IS NULL
+    `,
+    [token]
+  );
+
+  if (promoResult.rows.length === 0) {
+    return res.status(404).send("Not found");
+  }
+
+  const promoCheckout = promoResult.rows[0];
+
+  const promoPath = path.join(
+    __dirname,
+    "public",
+    promoCheckout.step2_file
+  );
+
+  let promoHtml = fs.readFileSync(
+    promoPath,
+    "utf8"
+  );
+
+  promoHtml = promoHtml.replace(
+  "</head>",
+  `
+  <script>
+    window.PROMO_CHECKOUT_TOKEN =
+      ${JSON.stringify(token)};
+
+    window.XOLVIS_PUBLIC_INTEGRATION_KEY =
+      ${JSON.stringify(process.env.XOLVIS_PUBLIC_INTEGRATION_KEY || "")};
+  </script>
+  </head>
+  `
+);
+
+  return res.send(promoHtml);
+}
+
+    const checkout = result.rows[0];
+
+    const checkoutPath = path.join(
+      __dirname,
+      "public",
+      "checkout.html"
+    );
+
+    let html = fs.readFileSync(
+      checkoutPath,
+      "utf8"
+    );
+
+    html = html.replace(
+      "</head>",
+      `
+      <script>
+        window.CHECKOUT_PLAN =
+          ${JSON.stringify(checkout.plan)};
+      </script>
+      </head>
+      `
+    );
+
+    res.send(html);
+
+  } catch (err) {
+
+    console.error(
+      "Protected checkout error:",
+      err
+    );
+
+    res.status(500).send("Server error");
+  }
+});
+
+// --------------------------------------------
+// PROMO FUNNEL EVENT
+// --------------------------------------------
+
+app.post("/api/promo-funnel-event", async (req, res) => {
+  try {
+    const {
+  flowId,
+  eventName,
+  pageUrl,
+  affiliateRef,
+  eventDetails
+} = req.body || {};
+
+    const cleanFlowId =
+      String(flowId || "").trim();
+
+    const cleanEventName =
+      String(eventName || "").trim();
+
+    if (!cleanFlowId) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing flow ID"
+      });
+    }
+
+    const allowedEvents = [
+  "PAGE1_LOADED",
+  "PAGE1_BUTTON_CLICKED",
+  "CHECKOUT_LINK_CREATED",
+  "PAGE2_LOADED",
+  "PAYMENT_FIELDS_READY",
+  "PAYMENT_INIT_FAILED",
+  "PAYMENT_BUTTON_CLICKED",
+  "PAYMENT_TOKEN_CREATED",
+  "PAYMENT_TOKEN_FAILED",
+  "XOLVIS_TRANSACTION_CREATED"
+];
+
+    if (!allowedEvents.includes(cleanEventName)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Invalid funnel event"
+      });
+    }
+
+    const cleanEventDetails =
+  String(eventDetails || "")
+    .slice(0, 5000);
+
+await pool.query(
+  `
+  INSERT INTO promo_funnel_events
+  (
+    flow_id,
+    event_name,
+    page_url,
+    affiliate_ref,
+    user_agent,
+    ip,
+    event_details
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7)
+
+  ON CONFLICT (flow_id, event_name)
+  DO UPDATE SET
+    event_details =
+      CASE
+        WHEN EXCLUDED.event_details IS NOT NULL
+             AND EXCLUDED.event_details <> ''
+        THEN EXCLUDED.event_details
+        ELSE promo_funnel_events.event_details
+      END
+  `,
+  [
+    cleanFlowId,
+    cleanEventName,
+    pageUrl || null,
+    affiliateRef || null,
+    req.headers["user-agent"] || "",
+    req.ip || null,
+    cleanEventDetails || null
+  ]
+);
+
+    return res.json({
+      ok: true
+    });
+
+  } catch (err) {
+    console.error(
+      "PROMO FUNNEL EVENT ERROR:",
+      err
+    );
+
+    return res.status(500).json({
+      ok: false
+    });
+  }
+});
+
+// --------------------------------------------
+// CREATE PROMO CHECKOUT LINK
+// --------------------------------------------
+
+app.post("/api/create-promo-checkout-link", async (req, res) => {
+  try {
+    const {
+      plan,
+      step2File,
+      sourcePage,
+      firstName,
+      lastName,
+      name,
+      email,
+      phonePrefix,
+      phone,
+      address,
+      postcode,
+      city,
+      country,
+      ref,
+      originalQueryString,
+      successUrl
+    } = req.body || {};
+
+    const loggedInUser =
+  getOptionalLoggedInUser(req);
+
+// Main website checkout must always belong
+// to a logged-in user account.
+if (
+  step2File === "checkout.html" &&
+  !loggedInUser
+) {
+  return res.status(401).json({
+    error: "Please log in before continuing to checkout"
+  });
+}
+
+const checkoutUserId =
+  loggedInUser?.id || null;
+
+const checkoutEmail =
+  loggedInUser?.email ||
+  email?.trim().toLowerCase();
+
+if (!checkoutEmail) {
+  return res.status(400).json({
+    error: "Email is required"
+  });
+}
+
+const token = createToken(18);
+
+    const expiresAt = new Date(
+      Date.now() + 30 * 60 * 1000
+    );
+
+    await pool.query(
+      `
+      INSERT INTO promo_checkout_links
+      (
+        token,
+        step2_file,
+        plan,
+        first_name,
+        last_name,
+        full_name,
+        email,
+        phone,
+        address,
+        postcode,
+        city,
+        country,
+        affiliate_ref,
+        source_page,
+        original_query_string,
+success_url,
+user_id,
+ip,
+user_agent,
+expires_at      )
+            VALUES
+      ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+      `,
+      [
+        token,
+        step2File || "sth-fi-uk2.html",
+        plan || "lifetime",
+        firstName || null,
+        lastName || null,
+        name || null,
+checkoutEmail,
+`${phonePrefix || ""}${phone || ""}`,
+        address || null,
+        postcode || null,
+        city || null,
+        country || "United Kingdom",
+        ref || null,
+        sourcePage || null,
+        originalQueryString || null,
+successUrl || null,
+checkoutUserId,
+req.ip,
+        req.headers["user-agent"] || "",
+        expiresAt      ]
+    );
+
+    res.json({
+      url: `/c/${token}`
+    });
+
+  } catch (err) {
+    console.error("Create promo checkout link error:", err);
+
+    res.status(500).json({
+      error: "Could not create promo checkout link"
+    });
+  }
+});
+
+
+// --------------------------------------------
+// --------------------------------------------
+// CREATE PROMO XOLVIS PAYMENT
+// --------------------------------------------
+
+app.post("/api/create-promo-payment", async (req, res) => {
+  try {
+    const {
+  checkoutToken,
+  cardholderName,
+  transactionToken,
+  cardData,
+  flowId,
+  clickid,
+  affiliate_source
+} = req.body || {};
+
+    if (!checkoutToken) {
+      return res.status(400).json({ error: "Missing checkout token" });
+    }
+
+    if (!transactionToken) {
+      return res.status(400).json({ error: "Missing Xolvis transaction token" });
+    }
+
+// --------------------------------------------
+// SAFE CARD METADATA FROM XOLVIS PAYMENT.JS
+// --------------------------------------------
+
+const cardBin =
+  String(
+    cardData?.first_six_digits ||
+    cardData?.bin_digits ||
+    ""
+  )
+    .replace(/\D/g, "")
+    .slice(0, 8);
+
+const cardType =
+  typeof cardData?.card_type === "string"
+    ? cardData.card_type.trim().toLowerCase()
+    : "";
+
+const cardLastFour =
+  String(cardData?.last_four_digits || "")
+    .replace(/\D/g, "")
+    .slice(-4);
+
+const cardCountry =
+  String(
+    cardData?.bin_country ||
+    cardData?.binCountry ||
+    cardData?.country_alpha2 ||
+    cardData?.country ||
+    ""
+  )
+    .trim()
+    .toUpperCase();
+
+
+console.log("SAFE CARD METADATA:", {
+  bin: cardBin,
+  cardType,
+  lastFour: cardLastFour
+});
+
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM promo_checkout_links
+      WHERE token = $1
+      AND expires_at > NOW()
+      AND used_at IS NULL
+      `,
+      [checkoutToken]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Invalid or expired checkout link" });
+    }
+
+    const checkout = result.rows[0];
+
+const originalParams =
+  new URLSearchParams(checkout.original_query_string || "");
+
+const affiliateSource =
+  originalParams.get("ref") ||
+  checkout.affiliate_ref ||
+  originalParams.get("affiliate_source") ||
+  affiliate_source ||
+  "";
+
+const trafficSource =
+  originalParams.get("source") || "";
+
+const binomClickid =
+  originalParams.get("clickid") || clickid || "";
+
+const subId =
+  originalParams.get("sub_id") || "";
+
+const email =
+  String(checkout.email || "")
+    .trim()
+    .toLowerCase();
+
+const selectedPlan =
+  checkout.plan || "3795";
+
+const amounts = {
+  "2295": 22.95,
+  "2695": 26.95,
+  "3795": 37.95,
+  "lifetime": 37.95
+};
+
+const amount = amounts[selectedPlan];
+
+if (!amount) {
+  return res.status(400).json({
+    error: "Invalid promo plan"
+  });
+}
+
+
+// --------------------------------------------
+// MAXIMUM 3 PAYMENT ATTEMPTS PER EMAIL / 24 HOURS
+// --------------------------------------------
+
+const previousAttemptsResult =
+  await pool.query(
+    `
+    SELECT COUNT(*)::int AS attempt_count
+    FROM xolvis_payments
+    WHERE LOWER(email) = $1
+      AND created_at >= NOW() - INTERVAL '24 hours'
+      AND reference LIKE 'promo-%'
+      AND UPPER(COALESCE(status, '')) NOT IN (
+        'OK',
+        'FINISHED',
+        'SUCCESSFUL'
+      )
+    `,
+    [email]
+  );
+
+const previousAttempts =
+  Number(
+    previousAttemptsResult.rows[0]?.attempt_count || 0
+  );
+
+console.log(
+  "PAYMENT ATTEMPTS FOR EMAIL:",
+  email,
+  previousAttempts
+);
+
+if (previousAttempts >= 3) {
+  console.warn(
+    "PAYMENT BLOCKED: TOO MANY ATTEMPTS:",
+    email
+  );
+
+  return res.status(429).json({
+    success: false,
+    error:
+      "You have reached the maximum number of payment attempts. Please try again later.",
+    code: "TOO_MANY_PAYMENT_ATTEMPTS"
+  });
+}
+    
+let mainSiteSuccessUrl;
+
+if (selectedPlan === "2295") {
+  mainSiteSuccessUrl =
+    process.env.XOLVIS_SUCCESS_URL_2295;
+
+} else if (selectedPlan === "2695") {
+  mainSiteSuccessUrl =
+    process.env.XOLVIS_SUCCESS_URL_2695;
+
+} else if (
+  selectedPlan === "3795" ||
+  selectedPlan === "lifetime"
+) {
+  mainSiteSuccessUrl =
+    process.env.XOLVIS_SUCCESS_URL_3795;
+}
+const selectedSuccessUrl =
+  checkout.success_url ||
+  mainSiteSuccessUrl ||
+  process.env.XOLVIS_SUCCESS_URL;
+    if (!selectedSuccessUrl) {
+      return res.status(500).json({
+        error: "No payment success URL configured"
+      });
+    }
+
+    let finalSuccessUrl;
+
+    try {
+      const successUrlObject =
+        new URL(selectedSuccessUrl);
+
+      if (checkout.original_query_string) {
+        const originalParameters =
+          new URLSearchParams(
+            checkout.original_query_string
+          );
+
+        for (
+          const [key, value]
+          of originalParameters.entries()
+        ) {
+          successUrlObject.searchParams.set(
+            key,
+            value
+          );
+        }
+      }
+
+      if (checkout.affiliate_ref) {
+        successUrlObject.searchParams.set(
+          "ref",
+          checkout.affiliate_ref
+        );
+      }
+
+      finalSuccessUrl =
+        successUrlObject.toString();
+
+    } catch (error) {
+      console.error(
+        "Invalid success URL:",
+        selectedSuccessUrl,
+        error
+      );
+
+      return res.status(500).json({
+        error: "Invalid payment success URL"
+      });
+    }
+
+    const reference = `promo-${selectedPlan}-${Date.now()}`;
+
+
+
+// --------------------------------------------
+// BLOCK UNSUPPORTED CARD BRANDS
+// --------------------------------------------
+
+const normalizedCardType =
+  String(cardType || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]/g, "");
+
+const supportedCardTypes = [
+  "visa",
+  "mastercard",
+  "mastercarddebit",
+  "mastercardcredit",
+  "mc"
+];
+
+const isUnsupportedCardType =
+  Boolean(normalizedCardType) &&
+  !supportedCardTypes.includes(normalizedCardType);
+
+if (isUnsupportedCardType) {
+  console.warn("PAYMENT BLOCKED BY CARD TYPE RULE:", {
+    cardType,
+    normalizedCardType,
+    bin: cardBin,
+    lastFour: cardLastFour
+  });
+
+   await pool.query(
+    `
+    INSERT INTO xolvis_payments
+    (
+      reference,
+      email,
+      plan,
+      amount,
+      status,
+      xolvis_payload,
+      user_id,
+      binom_clickid,
+      affiliate_source,
+      traffic_source,
+      sub_id,
+      card_bin,
+      card_type,
+      last_four
+    )
+    VALUES ($1, $2, $3, $4, 'BLOCKED', $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    ON CONFLICT (reference) DO NOTHING
+    `,
+    [
+      reference,
+      email,
+      selectedPlan,
+      amount,
+      {
+        result: "BLOCKED",
+        message: "CARD_TYPE_NOT_SUPPORTED",
+        binCountry: cardCountry || null,
+        cardType: cardType || null,
+        cardBin: cardBin || null,
+        lastFour: cardLastFour || null
+      },
+      checkout.user_id || null,
+      binomClickid || null,
+      affiliateSource || null,
+      trafficSource || null,
+      subId || null,
+      cardBin || null,
+      cardType || null,
+      cardLastFour || null
+    ]
+  );
+
+  return res.status(400).json({
+    success: false,
+    error:
+      "Only Visa and Mastercard are accepted. Please use another card.",
+    code: "CARD_TYPE_NOT_SUPPORTED"
+  });
+}
+
+// --------------------------------------------
+// CHECK CONFIGURED BLOCKED BINS
+// --------------------------------------------
+
+const blockedCardBins =
+  String(process.env.BLOCKED_CARD_BINS || "")
+    .split(",")
+    .map(bin => bin.trim().replace(/\D/g, ""))
+    .filter(Boolean);
+
+const isBlockedBin =
+  Boolean(cardBin) &&
+  blockedCardBins.includes(cardBin);
+
+if (isBlockedBin) {
+  console.warn("PAYMENT BLOCKED BY BIN RULE:", {
+    bin: cardBin,
+    cardType,
+    lastFour: cardLastFour
+  });
+
+  await pool.query(
+    `
+
+      INSERT INTO xolvis_payments
+    (
+      reference,
+      email,
+      plan,
+      amount,
+      status,
+      xolvis_payload,
+      user_id,
+      binom_clickid,
+            affiliate_source,
+      traffic_source,
+      sub_id,
+      card_bin,
+      card_type,
+      last_four
+    )
+    VALUES ($1, $2, $3, $4, 'BLOCKED', $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    ON CONFLICT (reference) DO NOTHING
+    `,
+    [
+      reference,
+      email,
+      selectedPlan,
+      amount,
+      {
+        result: "BLOCKED",
+        message: "CARD_BIN_BLOCKED",
+        binCountry: cardCountry || null,
+        cardType: cardType || null,
+        cardBin: cardBin || null,
+        lastFour: cardLastFour || null
+      },
+      checkout.user_id || null,
+      binomClickid || null,
+      affiliateSource || null,
+      trafficSource || null,
+      subId || null,
+      cardBin || null,
+      cardType || null,
+      cardLastFour || null
+]
+  );
+
+  return res.status(400).json({
+    success: false,
+    error:
+      "This card cannot be accepted. Please use another payment method.",
+    code: "CARD_BIN_BLOCKED"
+  });
+}
+
+const paymentResultUrl =
+  "https://legendspeak.net/payment-result?reference=" +
+  encodeURIComponent(reference);
+
+await pool.query(
+  `
+  INSERT INTO xolvis_payments
+  (
+    reference,
+    email,
+    plan,
+    amount,
+    user_id,
+    binom_clickid,
+    affiliate_source,
+    traffic_source,
+    sub_id,
+    card_bin,
+    card_type,
+    last_four,
+    final_redirect_url
+  )
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+  ON CONFLICT (reference) DO NOTHING
+  `,
+  [
+    reference,
+    email,
+    selectedPlan,
+    amount,
+    checkout.user_id || null,
+    binomClickid || null,
+    affiliateSource || null,
+    trafficSource || null,
+    subId || null,
+    cardBin || null,
+    cardType || null,
+    cardLastFour || null,
+    finalSuccessUrl
+  ]
+);
+
+const trackingCallbackUrl =
+  process.env.XOLVIS_CALLBACK_URL;
+
+if (!trackingCallbackUrl) {
+  return res.status(500).json({
+    error: "XOLVIS_CALLBACK_URL is not configured"
+  });
+}
+
+    const response = await fetch(
+  `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/debit`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: getXolvisAuthHeader(),
+      "Content-Type": "application/json; charset=utf-8",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      merchantTransactionId: reference,
+      transactionToken: transactionToken,
+      amount: amount.toFixed(2),
+      currency: "GBP",
+      description: "Legend Speak Access",
+
+      successUrl: paymentResultUrl,
+      cancelUrl: paymentResultUrl,
+      errorUrl: paymentResultUrl,
+
+      callbackUrl: trackingCallbackUrl,
+      customer: {
+        email: email,
+        firstName: checkout.first_name || "",
+        lastName: checkout.last_name || "",
+        ipAddress: req.ip || "127.0.0.1"
+      },
+      language: "en"
+    })
+  }
+);
+
+const rawText = await response.text();
+
+console.log("PROMO XOLVIS STATUS:", response.status);
+console.log("PROMO XOLVIS RAW RESPONSE:", rawText);
+
+let data = {};
+
+try {
+  data = rawText ? JSON.parse(rawText) : {};
+} catch {
+  data = { raw: rawText };
+}
+
+await pool.query(
+  `
+  UPDATE xolvis_payments
+  SET xolvis_payload = $1,
+      xolvis_uuid = $2,
+      status = $3
+  WHERE reference = $4
+  `,
+  [
+    data,
+    data.uuid || null,
+    data.returnType || "created",
+    reference
+  ]
+);
+
+if (
+  !response.ok ||
+  data.success === false ||
+  data.returnType === "ERROR"
+) {
+  return res.status(500).json({
+    error: "Xolvis error",
+    details: data
+  });
+}
+
+
+// --------------------------------------------
+// FUNNEL: XOLVIS TRANSACTION CREATED
+// --------------------------------------------
+
+const cleanFlowId =
+  String(flowId || "").trim();
+
+if (cleanFlowId) {
+  try {
+    await pool.query(
+      `
+      INSERT INTO promo_funnel_events
+      (
+        flow_id,
+        event_name,
+        page_url,
+        affiliate_ref,
+        user_agent,
+        ip
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+
+      ON CONFLICT (flow_id, event_name)
+      DO NOTHING
+      `,
+      [
+  cleanFlowId,
+  "XOLVIS_TRANSACTION_CREATED",
+  null,
+  affiliateSource || null,
+  req.headers["user-agent"] || "",
+  req.ip || null
+]
+    );
+
+    console.log(
+      "FUNNEL EVENT: XOLVIS_TRANSACTION_CREATED",
+      cleanFlowId
+    );
+
+  } catch (funnelError) {
+    console.error(
+      "XOLVIS FUNNEL TRACKING ERROR:",
+      funnelError
+    );
+  }
+}
+
+
+res.json({
+  ...data,
+  amount: amount.toFixed(2),
+  currency: "GBP",
+  plan: selectedPlan,
+  paymentResultUrl: paymentResultUrl
+});
+
+  } catch (err) {
+    console.error("Promo Xolvis payment error:", err);
+    res.status(500).json({ error: "Could not create promo payment" });
+  }
+});
+
+// --------------------------------------------
+// ADMIN CHARGEBACK CSV UPLOAD
+// --------------------------------------------
+
+app.post(
+  "/api/admin/chargebacks/upload",
+  requireAdminPassword,
+  chargebackUpload.single("file"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: "No CSV file uploaded"
+        });
+      }
+
+      const csvText =
+        req.file.buffer.toString("utf8");
+
+      const rows =
+        parseChargebackCsv(csvText);
+
+      if (!rows.length) {
+        return res.status(400).json({
+          success: false,
+          error: "The CSV contains no chargeback rows"
+        });
+      }
+
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+      let matched = 0;
+
+      for (const row of rows) {
+        const caseId =
+          String(
+            row["Case ID/Scheme ID"] || ""
+          ).trim();
+
+        if (!caseId) {
+          skipped++;
+          continue;
+        }
+
+        // This is the LegendSpeak CRM.
+        // Ignore cases belonging to the other merchant/site.
+        const merchantName =
+          String(
+            row["Merchant Name"] || ""
+          )
+            .trim()
+            .toUpperCase();
+
+        if (merchantName !== "LEGENDSPEAK.NET") {
+          skipped++;
+          continue;
+        }
+
+        // The Chargebacks tab should contain actual chargebacks only.
+        // RDR cases are a different dispute type and should not inflate
+        // the chargeback count.
+        const caseKind =
+          String(
+            row["Kind"] || ""
+          )
+            .trim()
+            .toUpperCase();
+
+        if (caseKind !== "CBK1") {
+          skipped++;
+          continue;
+        }
+
+        const {
+          cardBin,
+          lastFour
+        } = getChargebackCardParts(
+          row["Card No."]
+        );
+
+        // Paystrax already tells us the card network.
+        // Do not depend on transaction matching just to know Visa/Mastercard.
+        const networkCode =
+          String(
+            row["Ntwk"] || ""
+          )
+            .trim()
+            .toUpperCase();
+
+        const csvCardType =
+          networkCode === "VI"
+            ? "VISA"
+            : networkCode === "MC"
+              ? "MASTERCARD"
+              : networkCode || null;
+
+        const transactionDate =
+          parsePaystraxDate(
+            row["Transaction Date"]
+          );
+
+        const amount =
+          Number(
+            row["Merchant Funding Amt Gr"] ||
+            row["Netwk Sett Amt"] ||
+            0
+          );
+
+        const currency =
+          String(
+            row["Merchant Funding Currency"] ||
+            row["Netwk Sett Curr"] ||
+            ""
+          )
+            .trim()
+            .toUpperCase();
+
+        let matchedPayment = null;
+
+        if (
+          cardBin &&
+          lastFour &&
+          Number.isFinite(amount)
+        ) {
+          const matchResult =
+            await pool.query(
+              `
+              SELECT
+                p.reference,
+                p.email,
+                p.plan,
+                p.affiliate_source,
+                p.amount,
+
+                COALESCE(
+                  p.card_type,
+                  a.card_type
+                ) AS card_type,
+
+                COALESCE(
+                  p.xolvis_payload #>> '{returnData,binCountry}',
+                  p.xolvis_payload #>> '{returnData,binRawData,data,country_alpha2}',
+                  p.xolvis_payload #>> '{customer,binCountry}',
+                  p.xolvis_payload->>'binCountry'
+                ) AS card_country
+
+              FROM xolvis_payments p
+
+              LEFT JOIN card_payment_attempts a
+                ON a.payment_reference = p.reference
+
+              WHERE
+                LEFT(
+                  REGEXP_REPLACE(
+                    COALESCE(
+                      p.card_bin,
+                      a.card_bin,
+                      ''
+                    ),
+                    '[^0-9]',
+                    '',
+                    'g'
+                  ),
+                  6
+                ) = $1
+
+                AND RIGHT(
+                  REGEXP_REPLACE(
+                    COALESCE(
+                      p.last_four,
+                      a.last_four,
+                      ''
+                    ),
+                    '[^0-9]',
+                    '',
+                    'g'
+                  ),
+                  4
+                ) = $2
+
+                AND ABS(
+                  COALESCE(p.amount, 0) - $3
+                ) < 0.01
+
+                AND (
+                  UPPER(
+                    COALESCE(
+                      a.status,
+                      ''
+                    )
+                  ) = 'SUCCESSFUL'
+
+                  OR
+
+                  UPPER(
+                    COALESCE(
+                      p.status,
+                      ''
+                    )
+                  ) IN (
+                    'FINISHED',
+                    'OK',
+                    'SUCCESSFUL'
+                  )
+                )
+
+              ORDER BY
+                COALESCE(
+                  p.paid_at,
+                  p.created_at
+                ) DESC
+
+              LIMIT 1
+              `,
+              [
+                cardBin,
+                lastFour,
+                amount
+              ]
+            );
+
+          if (matchResult.rows.length) {
+            matchedPayment =
+              matchResult.rows[0];
+
+            matched++;
+          }
+        }        const existing =
+          await pool.query(
+            `
+            SELECT id
+            FROM chargebacks
+            WHERE case_id = $1
+            LIMIT 1
+            `,
+            [caseId]
+          );
+
+        await pool.query(
+          `
+          INSERT INTO chargebacks
+          (
+            case_id,
+            status,
+            network,
+            card_bin,
+            last_four,
+            reason_code,
+            dispute_condition,
+            transaction_date,
+            merchant_transaction_reference,
+            merchant_name,
+            currency,
+            amount,
+            matched_payment_reference,
+            card_country,
+            affiliate_source,
+            plan,
+            card_type,
+            email
+          )
+          VALUES
+          (
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,
+            $10,$11,$12,$13,$14,$15,$16,
+            $17,$18
+          )
+
+          ON CONFLICT (case_id)
+          DO UPDATE SET
+            status = EXCLUDED.status,
+            network = EXCLUDED.network,
+            card_bin = EXCLUDED.card_bin,
+            last_four = EXCLUDED.last_four,
+            reason_code = EXCLUDED.reason_code,
+            dispute_condition = EXCLUDED.dispute_condition,
+            transaction_date = EXCLUDED.transaction_date,
+            merchant_transaction_reference =
+              EXCLUDED.merchant_transaction_reference,
+            merchant_name = EXCLUDED.merchant_name,
+            currency = EXCLUDED.currency,
+            amount = EXCLUDED.amount,
+
+            matched_payment_reference =
+              COALESCE(
+                EXCLUDED.matched_payment_reference,
+                chargebacks.matched_payment_reference
+              ),
+
+            card_country =
+              COALESCE(
+                EXCLUDED.card_country,
+                chargebacks.card_country
+              ),
+
+            affiliate_source =
+              COALESCE(
+                EXCLUDED.affiliate_source,
+                chargebacks.affiliate_source
+              ),
+
+            plan =
+              COALESCE(
+                EXCLUDED.plan,
+                chargebacks.plan
+              ),
+
+            card_type =
+              COALESCE(
+                EXCLUDED.card_type,
+                chargebacks.card_type
+              ),
+
+            email =
+              COALESCE(
+                EXCLUDED.email,
+                chargebacks.email
+              )
+          `,
+          [
+            caseId,
+            row["Status"] || null,
+            row["Ntwk"] || null,
+            cardBin,
+            lastFour,
+            row["Reason Code"] || null,
+            row["Dispute Condition"] || null,
+            transactionDate,
+            row["Merch Tran Ref."] || null,
+            row["Merchant Name"] || null,
+            currency || null,
+            Number.isFinite(amount)
+              ? amount
+              : null,
+            matchedPayment?.reference || null,
+            matchedPayment?.card_country || null,
+            matchedPayment?.affiliate_source || null,
+            matchedPayment?.plan || null,
+            matchedPayment?.card_type || csvCardType || null,
+            matchedPayment?.email || null
+          ]
+        );
+
+        if (existing.rows.length) {
+          updated++;
+        } else {
+          imported++;
+        }
+      }
+
+      return res.json({
+        success: true,
+        totalRows: rows.length,
+        imported,
+        updated,
+        skipped,
+        matched
+      });
+
+    } catch (error) {
+      console.error(
+        "Chargeback CSV import error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: "Could not import chargeback CSV"
+      });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN FRAUD REPORT UPLOAD
+// --------------------------------------------
+
+app.post(
+  "/api/admin/fraud/upload",
+  requireAdminPassword,
+  fraudUpload.single("file"),
+  async (req, res) => {
+    try {
+
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          error: "No fraud Excel file uploaded"
+        });
+      }
+
+      const workbook =
+        new ExcelJS.Workbook();
+
+      await workbook.xlsx.load(
+        req.file.buffer
+      );
+
+      const worksheet =
+        workbook.worksheets[0];
+
+      if (!worksheet) {
+        return res.status(400).json({
+          success: false,
+          error: "The Excel file contains no worksheet"
+        });
+      }
+
+      const headers = [];
+
+      worksheet
+        .getRow(1)
+        .eachCell(
+          {
+            includeEmpty: true
+          },
+          (cell, columnNumber) => {
+            headers[columnNumber - 1] =
+              String(
+                getFraudExcelCellValue(
+                  cell.value
+                )
+              )
+                .trim()
+                .toUpperCase();
+          }
+        );
+
+      const requiredHeaders = [
+        "GATEWAY_REFERENCE_1",
+        "SEQUENCE_NUM",
+        "CARD_ACCT_NO",
+        "MERCH_NAME",
+        "MID",
+        "TXN_DATE",
+        "FRAUD_TYPE",
+        "ORIG_TXN_CCY",
+        "ORIG_TXN_AMT"
+      ];
+
+      const missingHeaders =
+        requiredHeaders.filter(
+          header =>
+            !headers.includes(header)
+        );
+
+      if (missingHeaders.length) {
+        return res.status(400).json({
+          success: false,
+          error:
+            "Fraud report is missing columns: " +
+            missingHeaders.join(", ")
+        });
+      }
+
+      const fraudRows = [];
+
+      worksheet.eachRow(
+        {
+          includeEmpty: false
+        },
+        (row, rowNumber) => {
+
+          if (rowNumber === 1) {
+            return;
+          }
+
+          const item = {};
+
+          headers.forEach(
+            (header, index) => {
+
+              if (!header) {
+                return;
+              }
+
+              item[header] =
+                getFraudExcelCellValue(
+                  row.getCell(
+                    index + 1
+                  ).value
+                );
+            }
+          );
+
+          fraudRows.push(item);
+        }
+      );
+
+      let imported = 0;
+      let updated = 0;
+      let skipped = 0;
+      let ignoredOtherMerchant = 0;
+      let matched = 0;
+
+      for (const row of fraudRows) {
+
+        const merchantName =
+          String(
+            row.MERCH_NAME || ""
+          ).trim();
+
+        const normalizedMerchantName =
+          merchantName
+            .replace(/\s+/g, "")
+            .toLowerCase();
+
+        const mid =
+          String(
+            row.MID || ""
+          ).trim();
+
+        const isLegendSpeak =
+          normalizedMerchantName ===
+            "legendspeak.net" ||
+          mid ===
+            "000106901001029";
+
+        if (!isLegendSpeak) {
+          ignoredOtherMerchant++;
+          continue;
+        }
+
+        const maskedCard =
+          String(
+            row.CARD_ACCT_NO || ""
+          ).trim();
+
+        const {
+          cardBin,
+          lastFour
+        } =
+          getChargebackCardParts(
+            maskedCard
+          );
+
+        const transactionDate =
+          normalizeFraudExcelDate(
+            row.TXN_DATE
+          );
+
+        const recordDate =
+          normalizeFraudExcelDate(
+            row.RECORD_DATE
+          );
+
+        const postDate =
+          normalizeFraudExcelDate(
+            row.POST_DATE
+          );
+
+        const originalAmount =
+          Number(
+            row.ORIG_TXN_AMT
+          );
+
+        const fraudAmountUsd =
+          Number(
+            row.FRAUD_AMT_USD
+          );
+
+        if (
+          !cardBin ||
+          !lastFour ||
+          !transactionDate ||
+          !Number.isFinite(
+            originalAmount
+          )
+        ) {
+          skipped++;
+          continue;
+        }
+
+        let matchedPayment = null;
+
+        const paymentMatch =
+          await pool.query(
+            `
+            SELECT
+              p.reference,
+              p.email,
+              p.plan,
+              p.affiliate_source,
+
+              COALESCE(
+                NULLIF(
+                  p.card_bin,
+                  ''
+                ),
+                a.card_bin
+              ) AS card_bin,
+
+              COALESCE(
+                NULLIF(
+                  p.last_four,
+                  ''
+                ),
+                a.last_four
+              ) AS last_four,
+
+              COALESCE(
+                NULLIF(
+                  p.card_type,
+                  ''
+                ),
+                a.card_type
+              ) AS card_type,
+
+              COALESCE(
+                p.xolvis_payload
+                  #>>
+                  '{returnData,binCountry}',
+
+                p.xolvis_payload
+                  #>>
+                  '{returnData,binRawData,data,country_alpha2}',
+
+                p.xolvis_payload
+                  #>>
+                  '{customer,binCountry}',
+
+                p.xolvis_payload
+                  ->>
+                  'binCountry'
+              ) AS card_country
+
+            FROM xolvis_payments p
+
+            LEFT JOIN card_payment_attempts a
+              ON
+                a.payment_reference =
+                p.reference
+
+            WHERE
+              p.paid_at IS NOT NULL
+
+              AND COALESCE(
+                NULLIF(
+                  p.card_bin,
+                  ''
+                ),
+                a.card_bin
+              ) = $1
+
+              AND COALESCE(
+                NULLIF(
+                  p.last_four,
+                  ''
+                ),
+                a.last_four
+              ) = $2
+
+              AND ABS(
+                p.amount -
+                $3::numeric
+              ) < 0.01
+
+              AND p.created_at >=
+                $4::date -
+                INTERVAL '1 day'
+
+              AND p.created_at <
+                $4::date +
+                INTERVAL '2 days'
+
+            ORDER BY
+              ABS(
+                EXTRACT(
+                  EPOCH FROM
+                  (
+                    p.created_at -
+                    $4::date
+                  )
+                )
+              )
+
+            LIMIT 1
+            `,
+            [
+              cardBin,
+              lastFour,
+              originalAmount,
+              transactionDate
+            ]
+          );
+
+        if (
+          paymentMatch.rows.length
+        ) {
+          matchedPayment =
+            paymentMatch.rows[0];
+
+          matched++;
+        }
+
+        const gatewayReference =
+          String(
+            row.GATEWAY_REFERENCE_1 ||
+            ""
+          ).trim();
+
+        const sequenceNumber =
+          String(
+            row.SEQUENCE_NUM ||
+            ""
+          ).trim();
+
+        const existing =
+          await pool.query(
+            `
+            SELECT id
+            FROM fraud_reports
+
+            WHERE
+              gateway_reference = $1
+              AND sequence_number = $2
+              AND card_bin = $3
+              AND last_four = $4
+              AND transaction_date = $5
+              AND original_amount = $6
+            `,
+            [
+              gatewayReference,
+              sequenceNumber,
+              cardBin,
+              lastFour,
+              transactionDate,
+              originalAmount
+            ]
+          );
+
+        await pool.query(
+          `
+          INSERT INTO fraud_reports (
+            gateway_reference,
+            sequence_number,
+
+            card_bin,
+            last_four,
+            card_scheme,
+
+            merchant_name,
+            mid,
+
+            acquirer_reference,
+
+            record_date,
+            transaction_date,
+            post_date,
+
+            fraud_amount_usd,
+            fraud_type,
+
+            original_currency,
+            original_amount,
+
+            auth_code,
+            file_reference,
+
+            merchant_city,
+            mcc,
+            pos_entry,
+            cap_method,
+
+            matched_payment_reference,
+
+            card_country,
+            affiliate_source,
+            plan,
+            card_type,
+            email
+          )
+
+          VALUES (
+            $1, $2,
+            $3, $4, $5,
+            $6, $7,
+            $8,
+            $9, $10, $11,
+            $12, $13,
+            $14, $15,
+            $16, $17,
+            $18, $19, $20, $21,
+            $22,
+            $23, $24, $25, $26, $27
+          )
+
+          ON CONFLICT (
+            gateway_reference,
+            sequence_number,
+            card_bin,
+            last_four,
+            transaction_date,
+            original_amount
+          )
+
+          DO UPDATE SET
+            card_scheme =
+              EXCLUDED.card_scheme,
+
+            merchant_name =
+              EXCLUDED.merchant_name,
+
+            mid =
+              EXCLUDED.mid,
+
+            acquirer_reference =
+              EXCLUDED.acquirer_reference,
+
+            record_date =
+              EXCLUDED.record_date,
+
+            post_date =
+              EXCLUDED.post_date,
+
+            fraud_amount_usd =
+              EXCLUDED.fraud_amount_usd,
+
+            fraud_type =
+              EXCLUDED.fraud_type,
+
+            original_currency =
+              EXCLUDED.original_currency,
+
+            auth_code =
+              EXCLUDED.auth_code,
+
+            file_reference =
+              EXCLUDED.file_reference,
+
+            merchant_city =
+              EXCLUDED.merchant_city,
+
+            mcc =
+              EXCLUDED.mcc,
+
+            pos_entry =
+              EXCLUDED.pos_entry,
+
+            cap_method =
+              EXCLUDED.cap_method,
+
+            matched_payment_reference =
+              EXCLUDED.matched_payment_reference,
+
+            card_country =
+              EXCLUDED.card_country,
+
+            affiliate_source =
+              EXCLUDED.affiliate_source,
+
+            plan =
+              EXCLUDED.plan,
+
+            card_type =
+              EXCLUDED.card_type,
+
+            email =
+              EXCLUDED.email,
+
+            imported_at =
+              NOW()
+          `,
+          [
+            gatewayReference,
+            sequenceNumber,
+
+            cardBin,
+            lastFour,
+            String(
+              row.CARD_SCHEME || ""
+            ).trim(),
+
+            merchantName,
+            mid,
+
+            String(
+              row.ACQ_REF_N || ""
+            ).trim(),
+
+            recordDate,
+            transactionDate,
+            postDate,
+
+            Number.isFinite(
+              fraudAmountUsd
+            )
+              ? fraudAmountUsd
+              : null,
+
+            String(
+              row.FRAUD_TYPE || ""
+            ).trim(),
+
+            String(
+              row.ORIG_TXN_CCY || ""
+            ).trim(),
+
+            originalAmount,
+
+            String(
+              row.AUTH_CODE || ""
+            ).trim(),
+
+            String(
+              row.FILE_REFERENCE || ""
+            ).trim(),
+
+            String(
+              row.MERCH_CITY || ""
+            ).trim(),
+
+            String(
+              row.MCC || ""
+            ).trim(),
+
+            String(
+              row.POS_ENTRY || ""
+            ).trim(),
+
+            String(
+              row.CAP_MET || ""
+            ).trim(),
+
+            matchedPayment
+              ?.reference ||
+              null,
+
+            matchedPayment
+              ?.card_country ||
+              null,
+
+            matchedPayment
+              ?.affiliate_source ||
+              null,
+
+            matchedPayment
+              ?.plan ||
+              null,
+
+            matchedPayment
+              ?.card_type ||
+              null,
+
+            matchedPayment
+              ?.email ||
+              null
+          ]
+        );
+
+        if (existing.rows.length) {
+          updated++;
+        } else {
+          imported++;
+        }
+      }
+
+      return res.json({
+        success: true,
+        imported,
+        updated,
+        skipped,
+        ignoredOtherMerchant,
+        matched
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Fraud Excel import error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not import fraud Excel report"
+      });
+    }
+  }
+);
+
+
+// --------------------------------------------
+// ADMIN FRAUD REPORTS API
+// --------------------------------------------
+
+app.get(
+  "/api/admin/fraud",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+
+      const result =
+        await pool.query(
+          `
+          SELECT
+            id,
+
+            gateway_reference,
+            sequence_number,
+
+            card_bin,
+            last_four,
+            card_scheme,
+
+            merchant_name,
+            mid,
+
+            acquirer_reference,
+
+            record_date,
+            transaction_date,
+            post_date,
+
+            fraud_amount_usd,
+            fraud_type,
+
+            original_currency,
+            original_amount,
+
+            auth_code,
+            file_reference,
+
+            merchant_city,
+            mcc,
+            pos_entry,
+            cap_method,
+
+            matched_payment_reference,
+
+            card_country,
+            affiliate_source,
+            plan,
+            card_type,
+            email,
+
+            imported_at
+
+          FROM fraud_reports
+
+          ORDER BY
+            transaction_date DESC,
+            id DESC
+          `
+        );
+
+      return res.json({
+        success: true,
+        fraudReports:
+          result.rows
+      });
+
+    } catch (error) {
+
+      console.error(
+        "Fraud reports API error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not load fraud reports"
+      });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN CHARGEBACKS API
+// --------------------------------------------
+
+app.get(
+  "/api/admin/chargebacks",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+      const result =
+        await pool.query(
+          `
+          SELECT
+            id,
+            case_id,
+            status,
+            network,
+            card_bin,
+            last_four,
+            reason_code,
+            dispute_condition,
+            transaction_date,
+            merchant_transaction_reference,
+            merchant_name,
+            currency,
+            amount,
+            matched_payment_reference,
+            card_country,
+            affiliate_source,
+            plan,
+            card_type,
+            email,
+            imported_at
+
+          FROM chargebacks
+
+          WHERE
+            UPPER(
+              TRIM(
+                COALESCE(
+                  merchant_name,
+                  ''
+                )
+              )
+            ) = 'LEGENDSPEAK.NET'
+
+          ORDER BY
+            transaction_date DESC,
+            imported_at DESC          `
+        );
+
+      return res.json({
+        success: true,
+        chargebacks: result.rows
+      });
+
+    } catch (error) {
+      console.error(
+        "Admin chargebacks error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: "Could not load chargebacks"
+      });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN PROMO FUNNEL SUMMARY
+// --------------------------------------------
+
+app.get(
+  "/api/admin/promo-funnel-summary",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT
+          COUNT(*) FILTER (
+  WHERE event_name = 'PAGE1_LOADED'
+) AS page1_loaded,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAGE1_BUTTON_CLICKED'
+) AS page1_button_clicked,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'CHECKOUT_LINK_CREATED'
+) AS checkout_link_created,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAGE2_LOADED'
+) AS page2_loaded,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_FIELDS_READY'
+) AS payment_fields_ready,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_INIT_FAILED'
+) AS payment_init_failed,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_BUTTON_CLICKED'
+) AS payment_button_clicked,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_TOKEN_CREATED'
+) AS payment_token_created,
+COUNT(*) FILTER (
+  WHERE event_name = 'PAYMENT_TOKEN_FAILED'
+) AS payment_token_failed,
+
+COUNT(*) FILTER (
+  WHERE event_name = 'XOLVIS_TRANSACTION_CREATED'
+) AS xolvis_transaction_created
+        FROM promo_funnel_events
+
+        WHERE created_at >= NOW() - INTERVAL '24 hours'
+      `);
+
+      const row = result.rows[0];
+
+      const page1Loaded =
+        Number(row.page1_loaded || 0);
+
+      const buttonClicked =
+        Number(row.page1_button_clicked || 0);
+
+      const checkoutCreated =
+        Number(row.checkout_link_created || 0);
+
+      const page2Loaded =
+  Number(row.page2_loaded || 0);
+
+const paymentFieldsReady =
+  Number(
+    row.payment_fields_ready || 0
+  );
+
+const paymentInitFailed =
+  Number(
+    row.payment_init_failed || 0
+  );
+
+const paymentButtonClicked =
+  Number(
+    row.payment_button_clicked || 0
+  );
+
+const paymentTokenCreated =
+  Number(
+    row.payment_token_created || 0
+  );
+
+const paymentTokenFailed =
+  Number(
+    row.payment_token_failed || 0
+  );
+
+const xolvisTransactionCreated =
+  Number(
+    row.xolvis_transaction_created || 0
+  );
+
+const tokenFailureResult =
+  await pool.query(`
+    SELECT
+      created_at,
+      flow_id,
+      affiliate_ref,
+      event_details,
+      user_agent,
+      page_url
+    FROM promo_funnel_events
+    WHERE event_name = 'PAYMENT_TOKEN_FAILED'
+      AND created_at >= NOW() - INTERVAL '24 hours'
+    ORDER BY created_at DESC
+    LIMIT 100
+  `);
+
+const tokenFailures =
+  tokenFailureResult.rows.map(row => ({
+    createdAt: row.created_at,
+    flowId: row.flow_id,
+    affiliateRef: row.affiliate_ref || "",
+    details:
+      row.event_details ||
+      "No error details received",
+    userAgent: row.user_agent || "",
+    pageUrl: row.page_url || ""
+  }));
+
+const paymentInitFailureResult =
+  await pool.query(`
+    SELECT
+      created_at,
+      flow_id,
+      affiliate_ref,
+      event_details,
+      user_agent,
+      page_url
+    FROM promo_funnel_events
+    WHERE event_name = 'PAYMENT_INIT_FAILED'
+      AND created_at >= NOW() - INTERVAL '24 hours'
+    ORDER BY created_at DESC
+    LIMIT 100
+  `);
+
+const paymentInitFailures =
+  paymentInitFailureResult.rows.map(row => ({
+    createdAt: row.created_at,
+    flowId: row.flow_id,
+    affiliateRef: row.affiliate_ref || "",
+    details:
+      row.event_details ||
+      "No error details received",
+    userAgent: row.user_agent || "",
+    pageUrl: row.page_url || ""
+  }));
+
+      return res.json({
+        success: true,
+        period: "last_24_hours",
+
+        page1Loaded,
+buttonClicked,
+checkoutCreated,
+page2Loaded,
+paymentFieldsReady,
+paymentInitFailed,
+paymentButtonClicked,
+paymentTokenCreated,
+paymentTokenFailed,
+xolvisTransactionCreated,
+tokenFailures,
+paymentInitFailures,
+
+        page1ToClickPercent:
+          page1Loaded > 0
+            ? Number(
+                (
+                  buttonClicked /
+                  page1Loaded *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+
+        clickToCheckoutPercent:
+          buttonClicked > 0
+            ? Number(
+                (
+                  checkoutCreated /
+                  buttonClicked *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+
+        checkoutToPage2Percent:
+          checkoutCreated > 0
+            ? Number(
+                (
+                  page2Loaded /
+                  checkoutCreated *
+                  100
+                ).toFixed(2)
+              )
+            : 0,
+
+        clickToPage2Percent:
+  buttonClicked > 0
+    ? Number(
+        (
+          page2Loaded /
+          buttonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+page2ToPaymentFieldsReadyPercent:
+  page2Loaded > 0
+    ? Number(
+        (
+          paymentFieldsReady /
+          page2Loaded *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+page2ToPaymentInitFailedPercent:
+  page2Loaded > 0
+    ? Number(
+        (
+          paymentInitFailed /
+          page2Loaded *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+page2ToPaymentClickPercent:
+  page2Loaded > 0
+    ? Number(
+        (
+          paymentButtonClicked /
+          page2Loaded *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+paymentClickToTokenPercent:  paymentButtonClicked > 0
+    ? Number(
+        (
+          paymentTokenCreated /
+          paymentButtonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+paymentTokenFailPercent:
+  paymentButtonClicked > 0
+    ? Number(
+        (
+          paymentTokenFailed /
+          paymentButtonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+tokenToXolvisPercent:
+  paymentTokenCreated > 0
+    ? Number(
+        (
+          xolvisTransactionCreated /
+          paymentTokenCreated *
+          100
+        ).toFixed(2)
+      )
+    : 0,
+
+paymentClickToXolvisPercent:
+  paymentButtonClicked > 0
+    ? Number(
+        (
+          xolvisTransactionCreated /
+          paymentButtonClicked *
+          100
+        ).toFixed(2)
+      )
+    : 0
+});
+
+    } catch (err) {
+      console.error(
+        "PROMO FUNNEL SUMMARY ERROR:",
+        err
+      );
+
+      return res.status(500).json({
+        success: false,
+        error: "Could not load funnel summary"
+      });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN DOWNLOAD ALL RECEIPTS
+// --------------------------------------------
+
+app.get(
+  "/api/admin/receipts/download-all",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+
+      const receiptObjects = [];
+
+      let continuationToken;
+
+      do {
+        const listResult =
+          await r2Client.send(
+            new ListObjectsV2Command({
+              Bucket: R2_BUCKET,
+              Prefix: "receipts/",
+              ContinuationToken:
+                continuationToken
+            })
+          );
+
+        if (
+          Array.isArray(listResult.Contents)
+        ) {
+          for (
+            const item
+            of listResult.Contents
+          ) {
+            if (
+              item.Key &&
+              item.Key
+                .toLowerCase()
+                .endsWith(".pdf")
+            ) {
+              receiptObjects.push(
+                item.Key
+              );
+            }
+          }
+        }
+
+        continuationToken =
+          listResult.IsTruncated
+            ? listResult.NextContinuationToken
+            : undefined;
+
+      } while (continuationToken);
+
+
+      if (receiptObjects.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "No receipt PDFs found"
+        });
+      }
+
+
+      const today =
+        new Date()
+          .toISOString()
+          .slice(0, 10);
+
+      res.setHeader(
+        "Content-Type",
+        "application/zip"
+      );
+
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="legendspeak-invoices-${today}.zip"`
+      );
+
+
+      const archive =
+        archiver(
+          "zip",
+          {
+            zlib: {
+              level: 9
+            }
+          }
+        );
+
+
+      archive.on(
+        "error",
+        error => {
+          console.error(
+            "RECEIPT ZIP ERROR:",
+            error
+          );
+
+          if (!res.headersSent) {
+            res.status(500).json({
+              success: false,
+              error:
+                "Could not create receipt ZIP"
+            });
+          } else {
+            res.destroy(error);
+          }
+        }
+      );
+
+
+      archive.pipe(res);
+
+
+      for (
+        const key
+        of receiptObjects
+      ) {
+
+        const objectResult =
+          await r2Client.send(
+            new GetObjectCommand({
+              Bucket: R2_BUCKET,
+              Key: key
+            })
+          );
+
+
+        if (!objectResult.Body) {
+          continue;
+        }
+
+
+        const zipFilename =
+          key.replace(
+            /^receipts\//,
+            ""
+          );
+
+
+        archive.append(
+          objectResult.Body,
+          {
+            name: zipFilename
+          }
+        );
+      }
+
+
+      await archive.finalize();
+
+
+      console.log(
+        "✅ ADMIN RECEIPT ZIP CREATED:",
+        receiptObjects.length,
+        "PDF files"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "ADMIN RECEIPT DOWNLOAD ERROR:",
+        error
+      );
+
+
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error:
+            "Could not download receipts"
+        });
+      } else {
+        res.destroy(error);
+      }
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN TRANSACTIONS API
+// --------------------------------------------
+
+app.get(
+  "/api/admin/transactions",
+  requireAdminPassword,
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
+  SELECT
+    COALESCE(
+      p.reference,
+      a.payment_reference
+    ) AS reference,
+
+    COALESCE(
+      p.email,
+      a.email
+    ) AS email,
+
+    p.plan,
+    p.amount,
+
+    COALESCE(
+      p.status,
+      a.status
+    ) AS payment_status,
+
+    COALESCE(
+      p.created_at,
+      a.created_at
+    ) AS created_at,
+
+    p.paid_at,
+p.xolvis_uuid,
+p.affiliate_source,
+p.traffic_source,
+p.sub_id,
+
+COALESCE(p.card_bin, a.card_bin) AS card_bin,
+COALESCE(p.card_type, a.card_type) AS card_type,
+COALESCE(p.last_four, a.last_four) AS last_four,
+a.status AS attempt_status,
+a.gateway_status,
+COALESCE(
+  p.xolvis_payload #>> '{returnData,binCountry}',
+  p.xolvis_payload #>> '{returnData,binRawData,data,country_alpha2}',
+  p.xolvis_payload #>> '{customer,binCountry}',
+  p.xolvis_payload->>'binCountry'
+) AS card_country,
+
+COALESCE(
+  p.xolvis_payload->>'adapterMessage',
+  p.xolvis_payload->>'message',
+  p.xolvis_payload->>'result',
+  a.gateway_status,
+  a.status,
+  p.status
+) AS reason
+
+  FROM xolvis_payments p
+
+  FULL OUTER JOIN card_payment_attempts a
+    ON a.payment_reference = p.reference
+
+  ORDER BY COALESCE(
+    p.created_at,
+    a.created_at
+  ) DESC
+`);
+
+      res.json({
+        success: true,
+        transactions: result.rows
+      });
+
+    } catch (error) {
+      console.error(
+        "Admin transactions error:",
+        error
+      );
+
+      res.status(500).json({
+        success: false,
+        error: "Could not load transactions"
+      });
+    }
+  }
+);
+
+const frontendPath = path.join(__dirname, "public");
+
+app.use(express.static(frontendPath));
+
+// Inject footer links into every HTML page
+app.use((req, res, next) => {
+	const oldSend = res.send;
+
+	res.send = function (data) {
+		if (typeof data === "string" && data.includes("</body>")) {
+			data = data.replace(
+				"</body>",
+				`
+<footer style="
+margin-top:40px;
+padding:20px;
+text-align:center;
+font-size:14px;
+color:#aaa;
+border-top:1px solid rgba(0,0,0,0.1);
+">
+<a href="/privacy-policy.html">Privacy Policy</a> |
+<a href="/terms-and-conditions.html">Terms & Conditions</a>
+</footer>
+</body>`
+			);
+		}
+		return oldSend.call(this, data);
+	};
+
+	next();
+});
+//--------------------------------------------
+//	OPENAI/OPENROUTER CLIENT
+//--------------------------------------------
+
+const openai = new OpenAI({	
+	baseURL: "https://openrouter.ai/api/v1",
+	apiKey: process.env.OPENROUTER_API_KEY,
+	defaultHeaders: {
+		'HTTP-Referer': 'https://www.legendspeak.net',	
+		'X-Title': 'Legend Speak'	 	 	 	 	
+	}
+});
+
+//--------------------------------------------
+//	CHAT ROUTE (NOW DYNAMICALLY USES CHARACTER PROFILES)
+//--------------------------------------------
+
+app.get("/api/chat/history", async (req, res) => {
+	try {
+		const authHeader = req.headers.authorization;
+		const token = authHeader && authHeader.split(" ")[1];
+		if (!token) return res.status(401).json({ error: "No token" });
+		const decoded = jwt.verify(token, SECRET_KEY);
+		const userId = decoded.id;
+		const { characterId } = req.query;
+
+		const history = await pool.query(
+			"SELECT * FROM messages WHERE user_id = $1 AND character_id = $2 ORDER BY created_at ASC LIMIT 50",
+			[userId, characterId]
+		);
+		res.json(history.rows);
+	} catch (err) {
+		res.status(500).json({ error: "Failed to load history" });
+	}
+});
+
+app.post("/api/chat", authenticateToken, async (req, res) => {
+	try {
+		const { characterId, message } = req.body;
+
+		if (!characterId || !message)
+			return res.status(400).json({ error: "Missing character or message" });
+
+		const character = historicalProfiles.find(c => c.id === Number(characterId));
+		if (!character)
+			return res.status(400).json({ error: "Invalid character" });
+
+		const userId = req.user.id;
+
+// 🔒 Check user access and free message limit
+const userResult = await pool.query(
+  "SELECT plan, lifetime, expires_at, messages_sent FROM users WHERE id = $1",
+  [userId]
+);
+
+const userData = userResult.rows[0];
+
+const isPaid =
+  userData.lifetime ||
+  (userData.expires_at &&
+    new Date(userData.expires_at) > new Date());
+
+// Free users get 3 messages before paywall
+if (!isPaid && parseInt(userData.messages_sent) >= 3) {
+  return res.status(403).json({
+    error: "LIMIT_REACHED",
+    message:
+      "You have used your 3 free divine consultations. Please choose an offering to continue."
+  });
+}
+
+// Paid users still respect plan restrictions
+if (isPaid && !canAccessCharacter(userData, Number(characterId))) {
+  return res.status(403).json({
+    error: "NO_ACCESS",
+    message: "You do not have access to this character."
+  });
+}
+		// Save user message
+		await pool.query(
+			`INSERT INTO messages (user_id, character_id, from_user, text)
+			 VALUES ($1, $2, true, $3)`,
+			[userId, characterId, message]
+		);
+
+		// Load chat history
+		const history = await pool.query(
+			`SELECT * FROM messages
+			 WHERE user_id = $1 AND character_id = $2
+			 ORDER BY created_at ASC
+			 LIMIT 20`,
+			[userId, characterId]
+		);
+
+		const chatHistory = history.rows.map(m => ({
+			role: m.from_user ? "user" : "assistant",
+			content: m.text
+		}));
+
+		// 🔑 NEW: Dynamically set the system prompt based on the character's description
+		const systemPrompt = `
+You are ${character.name}, the real historical person.
+
+${character.description}
+
+RULES:
+- Respond as ${character.name} would reasonably have responded based on reliable historical knowledge of their life, personality, writings, beliefs, experiences, and historical period.
+- Stay fully in character as ${character.name}.
+- Do not say you are an AI, chatbot, or language model.
+- Use vocabulary, attitudes, and reasoning appropriate to ${character.name}.
+- Answer the user's question directly.
+- Do not automatically agree with the user.
+- Do not invent historical facts, quotations, events, or opinions.
+- If something happened after ${character.name}'s lifetime, do not pretend to have personally known about it.
+- If appropriate, reason about later events hypothetically from ${character.name}'s historical worldview.
+
+Remain ${character.name} throughout the conversation.
+`;
+
+		// Send to OpenRouter/OpenAI
+		const aiResponse = await openai.chat.completions.create({	
+			model: "openai/gpt-3.5-turbo",	
+			messages: [
+				{ role: "system", content: systemPrompt }, 
+				...chatHistory,
+				{ role: "user", content: message }
+			],
+			temperature: 0.7,
+			max_tokens: 400
+		});
+
+		const reply = aiResponse.choices?.[0]?.message?.content;
+
+		// Save assistant reply
+		if (reply) {
+			await pool.query(
+				`INSERT INTO messages (user_id, character_id, from_user, text)
+				 VALUES ($1, $2, false, $3)`,
+				[userId, characterId, reply]
+			);
+		}
+
+// Increment free message counter
+				if (!isPaid) {
+			await pool.query("UPDATE users SET messages_sent = messages_sent + 1 WHERE id = $1", [userId]);
+		}
+
+		res.json({ reply: reply || "(No response)" });
+
+	} catch (err) {
+		console.error("DEBUG ERROR:", err);
+		res.status(500).json({ error: "Server Error: " + (err.message || "Unknown") });
+	}
+});
+
+//--------------------------------------------
+//	FETCH MESSAGES ROUTE
+//--------------------------------------------
+
+app.get("/api/messages/:characterId", authenticateToken, async (req, res) => {
+	try {
+		const { characterId } = req.params;
+
+		const result = await pool.query(
+			`SELECT * FROM messages
+			 WHERE user_id = $1 AND character_id = $2
+			 ORDER BY created_at ASC`,
+			[req.user.id, characterId]
+		);
+
+		res.json(result.rows);
+	} catch (err) {
+		console.error("Fetch messages error:", err);
+		res.status(500).json({ error: "Server error" });
+	}
+});
+
+// --------------------------------------------
+// PAYMENT RESULT STATUS CHECK
+// --------------------------------------------
+
+app.get("/api/payment-result-status", async (req, res) => {
+  try {
+    const reference =
+      String(req.query.reference || "").trim();
+
+    if (!reference) {
+      return res.status(400).json({
+        ok: false,
+        error: "Missing payment reference"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        reference,
+        status,
+        paid_at,
+        final_redirect_url,
+        xolvis_payload
+      FROM xolvis_payments
+      WHERE reference = $1
+      LIMIT 1
+      `,
+      [reference]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: "Payment not found"
+      });
+    }
+
+    const payment = result.rows[0];
+
+const trackingResult = await pool.query(
+  `
+  SELECT original_query_string, affiliate_ref
+  FROM promo_checkout_links
+  WHERE email = (
+    SELECT email
+    FROM xolvis_payments
+    WHERE reference = $1
+    LIMIT 1
+  )
+  ORDER BY created_at DESC
+  LIMIT 1
+  `,
+  [reference]
+);
+
+const trackingCheckout =
+  trackingResult.rows[0] || {};
+
+const originalParameters =
+  new URLSearchParams(
+    trackingCheckout.original_query_string || ""
+  );
+
+const incomingSub1 =
+  originalParameters.get("sub1");
+
+const incomingSub2 =
+  originalParameters.get("sub2");
+
+function buildFailureRedirectUrl(baseUrl) {
+  if (!baseUrl) return "";
+
+  const urlObject =
+    new URL(baseUrl);
+
+  if (incomingSub1) {
+    urlObject.searchParams.set(
+      "sub3",
+      incomingSub1
+    );
+  }
+
+  if (incomingSub2) {
+    urlObject.searchParams.set(
+      "sub4",
+      incomingSub2
+    );
+  }
+
+  if (trackingCheckout.affiliate_ref) {
+    urlObject.searchParams.set(
+      "ref",
+      trackingCheckout.affiliate_ref
+    );
+  }
+
+  return urlObject.toString();
+}
+
+const finalCancelUrl =
+  buildFailureRedirectUrl(
+    process.env.XOLVIS_CANCEL_URL
+  );
+
+const finalErrorUrl =
+  buildFailureRedirectUrl(
+    process.env.XOLVIS_ERROR_URL ||
+    process.env.XOLVIS_CANCEL_URL
+  );
+
+    const status =
+      String(payment.status || "")
+        .trim()
+        .toUpperCase();
+
+    const payload =
+      payment.xolvis_payload || {};
+
+    const gatewayMessage =
+      String(payload.message || "")
+        .trim()
+        .toLowerCase();
+
+    const adapterMessage =
+      String(payload.adapterMessage || "")
+        .trim()
+        .toLowerCase();
+
+    const gatewayCode =
+      String(payload.code || "")
+        .trim();
+
+    // --------------------------------------------
+    // REAL SUCCESS
+    // --------------------------------------------
+
+    if (
+      payment.paid_at &&
+      payment.final_redirect_url
+    ) {
+      return res.json({
+        ok: true,
+        final: true,
+        successful: true,
+        resultType: "SUCCESS",
+        status: status,
+        redirectUrl: payment.final_redirect_url
+      });
+    }
+
+    // --------------------------------------------
+    // EXPLICIT USER CANCELLATION
+    // --------------------------------------------
+
+    const isUserCancelled =
+      gatewayCode === "1003" ||
+      gatewayMessage === "user cancelled" ||
+      adapterMessage === "cancelled by user";
+
+    if (isUserCancelled) {
+      return res.json({
+        ok: true,
+        final: true,
+        successful: false,
+        resultType: "CANCEL",
+        status: status,
+redirectUrl:
+  finalCancelUrl      });
+    }
+
+    // --------------------------------------------
+    // ALL OTHER FINAL FAILURES
+    // --------------------------------------------
+
+    const isFailure =
+      status === "ERROR" ||
+      status === "FAILED" ||
+      status === "DECLINED" ||
+      status === "CANCELLED" ||
+      status === "BLOCKED";
+
+    if (isFailure) {
+      return res.json({
+        ok: true,
+        final: true,
+        successful: false,
+        resultType: "ERROR",
+        status: status,
+        redirectUrl:
+  finalErrorUrl
+      });
+    }
+
+    // --------------------------------------------
+    // STILL WAITING FOR FINAL WEBHOOK
+    // --------------------------------------------
+
+    return res.json({
+      ok: true,
+      final: false,
+      successful: false,
+      resultType: "PENDING",
+      status: status || "UNKNOWN"
+    });
+
+  } catch (err) {
+    console.error(
+      "PAYMENT RESULT STATUS ERROR:",
+      err
+    );
+
+    return res.status(500).json({
+      ok: false,
+      error: "Could not check payment status"
+    });
+  }
+});
+
+
+// --------------------------------------------
+// PAYMENT RESULT PAGE
+// --------------------------------------------
+
+app.get("/payment-result", (req, res) => {
+  const reference =
+    String(req.query.reference || "").trim();
+
+  if (!reference) {
+    return res.status(400).send(
+      "Invalid payment reference."
+    );
+  }
+
+  res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <title>Checking Payment</title>
+</head>
+
+<body style="
+  font-family: Arial, sans-serif;
+  text-align: center;
+  padding: 80px 20px;
+">
+
+  <h2 id="title">
+    Checking your payment...
+  </h2>
+
+  <p id="message">
+    Please wait while we confirm your transaction.
+  </p>
+
+  <script>
+    const reference =
+      ${JSON.stringify(reference)};
+
+    let attempts = 0;
+
+    const maxAttempts = 300;
+
+    async function checkPayment() {
+      attempts++;
+
+      try {
+        const response = await fetch(
+          "/api/payment-result-status?reference=" +
+          encodeURIComponent(reference),
+          {
+            cache: "no-store"
+          }
+        );
+
+        const data =
+          await response.json();
+
+        if (
+          data.ok === true &&
+          data.final === true &&
+          data.redirectUrl
+        ) {
+          window.location.replace(
+            data.redirectUrl
+          );
+
+          return;
+        }
+
+      } catch (error) {
+        console.error(
+          "Payment check failed:",
+          error
+        );
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(
+          checkPayment,
+          2000
+        );
+
+        return;
+      }
+
+      document.getElementById(
+        "title"
+      ).textContent =
+        "Payment still processing";
+
+      document.getElementById(
+        "message"
+      ).textContent =
+        "We have not yet received confirmation of your payment. Please do not submit another payment.";
+    }
+
+    checkPayment();
+  </script>
+
+</body>
+</html>
+  `);
+});
+app.get("/xolvis-webhook", (req, res) => {
+  console.log("XOLVIS WEBHOOK GET TEST");
+  res.send("Xolvis webhook endpoint is reachable");
+});
+
+app.post("/xolvis-webhook", async (req, res) => {
+  try {
+    const data = req.body;
+
+    console.log("XOLVIS WEBHOOK:");
+    console.log(JSON.stringify(data, null, 2));
+
+    const reference =
+      data?.merchantTransactionId ||
+      data?.merchantTransactionID ||
+      data?.transaction?.merchantTransactionId ||
+      data?.reference ||
+      null;
+
+    const uuid =
+      data?.uuid ||
+      data?.transactionUuid ||
+      data?.transaction?.uuid ||
+      null;
+
+    const status =
+  data?.result ||
+  data?.returnType ||
+  data?.status ||
+  data?.transaction?.status ||
+  "UNKNOWN";
+
+const isSuccessful =
+  data?.result === "OK" ||
+  data?.returnType === "FINISHED" ||
+  data?.status === "FINISHED" ||
+  data?.transaction?.status === "FINISHED";
+
+    if (!reference && !uuid) {
+      console.error("XOLVIS WEBHOOK: Missing reference/uuid");
+      return res.status(400).json({
+        error: "Missing payment reference"
+      });
+    }
+
+    const paymentResult = await pool.query(
+      `
+      SELECT *
+      FROM xolvis_payments
+      WHERE reference = $1
+         OR xolvis_uuid = $2
+      LIMIT 1
+      `,
+      [
+        reference,
+        uuid
+      ]
+    );
+
+    if (paymentResult.rows.length === 0) {
+      console.error("Payment not found:", reference, uuid);
+
+      return res.json({
+        ok: true
+      });
+    }
+
+    const payment = paymentResult.rows[0];
+
+const wasAlreadyPaid =
+  payment.paid_at != null;
+
+await pool.query(
+      `
+      UPDATE xolvis_payments
+      SET
+        status = $1,
+        xolvis_payload = $2,
+        xolvis_uuid = COALESCE($3, xolvis_uuid),
+        paid_at =
+          CASE
+            WHEN $4 THEN NOW()
+            ELSE paid_at
+          END
+      WHERE id = $5
+      `,
+      [
+        status,
+        data,
+        uuid,
+        isSuccessful,
+payment.id
+      ]
+    );
+
+await pool.query(
+  `
+  UPDATE card_payment_attempts
+  SET
+    status = $1,
+    gateway_status = $2,
+    updated_at = NOW()
+  WHERE payment_reference = $3
+  `,
+  [
+    isSuccessful ? "SUCCESSFUL" : "FAILED",
+    status,
+    payment.reference
+  ]
+);
+
+    if (!isSuccessful) {
+  return res.json({
+    ok: true
+  });
+}
+
+if (wasAlreadyPaid) {
+  console.log(
+    "XOLVIS WEBHOOK: Successful payment already processed, skipping duplicate:",
+    payment.reference
+  );
+
+  return res.json({
+    ok: true
+  });
+}
+
+let accessPlan = "scholar";
+let days = 30;
+
+if (payment.plan === "2695") {
+  accessPlan = "all";
+  days = 30;
+}
+
+if (
+  payment.plan === "3795" ||
+  payment.plan === "lifetime"
+) {
+  accessPlan = "all";
+  days = 90;
+}
+
+    const expiresAt = new Date();
+    expiresAt.setDate(
+      expiresAt.getDate() + days
+    );
+
+    const updateResult = await pool.query(
+  `
+  UPDATE users
+  SET
+    plan = $1,
+    expires_at = $2,
+    lifetime = false,
+    messages_sent = 0
+  WHERE
+    (
+      $3::integer IS NOT NULL
+      AND id = $3
+    )
+    OR
+    (
+      $3::integer IS NULL
+      AND LOWER(email) = LOWER($4)
+    )
+  RETURNING *
+  `,
+  [
+    accessPlan,
+    expiresAt,
+    payment.user_id || null,
+    payment.email
+  ]
+);
+
+    if (updateResult.rows.length === 0) {
+  console.error(
+    "User not found:",
+    payment.email
+  );
+}
+
+    // --------------------------------------------
+// RECEIPT PROCESS
+// Separate from website access
+// --------------------------------------------
+
+try {
+
+  const productName =
+    getReceiptProductName(
+      payment.plan
+    );
+
+  const customerName =
+    [
+      data?.customer?.firstName,
+      data?.customer?.lastName
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim() ||
+    data?.returnData?.cardHolder ||
+    "Customer";
+
+  const rawPaymentMethod =
+    String(
+      data?.paymentMethod ||
+      "Credit Card"
+    );
+
+  const paymentMethod =
+    rawPaymentMethod.replace(
+      /^creditcard$/i,
+      "Credit Card"
+    );
+
+  const receiptNumber =
+    "STH-" +
+    String(payment.id)
+      .padStart(8, "0");
+
+  const receiptPdf =
+    await makeReceiptPdf({
+      receiptNumber,
+      customerName,
+      email: payment.email,
+      productName,
+      amount: payment.amount,
+      paymentMethod,
+      reference: payment.reference
+    });
+
+  await uploadReceiptToR2({
+    pdfBuffer: receiptPdf,
+    receiptNumber
+  });
+
+  
+
+  console.log(
+    "✅ RECEIPT PROCESS COMPLETED:",
+    receiptNumber
+  );
+
+} catch (receiptError) {
+
+  console.error(
+    "❌ RECEIPT PROCESS FAILED:",
+    receiptError
+  );
+
+}
+
+    res.json({
+      ok: true
+    });
+
+  } catch (err) {
+
+    console.error(
+      "Xolvis webhook error:",
+      err
+    );
+
+    res.status(500).json({
+      error: "Webhook error"
+    });
+  }
+});
+app.get("/test-receipt-email", async (req, res) => {
+  try {
+
+    const email =
+      "markvanstratum67@gmail.com";
+
+    const receiptNumber =
+      "STH-TEST-" + Date.now();
+
+    const receiptPdf =
+      await makeReceiptPdf({
+        receiptNumber,
+        customerName: "Test Customer",
+        email,
+        productName:
+          "Legend Speak 3 Month Full Access",
+        amount: 37.95,
+        paymentMethod: "Credit Card",
+        reference:
+          "TEST-" + Date.now()
+      });
+
+    await uploadReceiptToR2({
+      pdfBuffer: receiptPdf,
+      receiptNumber
+    });
+
+    await sendEmail(
+      email,
+      "TEST Legend Speak Receipt",
+      `
+      <h2>Test receipt</h2>
+      <p>This is a test receipt.</p>
+      `,
+      [
+        {
+          filename:
+            `${receiptNumber}.pdf`,
+          content:
+            receiptPdf.toString("base64")
+        }
+      ]
+    );
+
+    res.send(
+      "Test receipt created, uploaded and emailed."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "TEST RECEIPT ERROR:",
+      error
+    );
+
+    res.status(500).send(
+      "Test receipt failed."
+    );
+  }
+});
+app.get("/", (req, res) => {
+	res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+<title>Legend Speak</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body{
+font-family: Arial;
+background:#0f172a;
+color:white;
+text-align:center;
+padding:60px;
+}
+
+footer{
+margin-top:60px;
+opacity:.7;
+font-size:14px;
+}
+
+a{
+color:#60a5fa;
+text-decoration:none;
+margin:0 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Legend Speak</h1>
+
+<p>Your AI biblical conversation platform.</p>
+
+<footer>
+<a href="/privacy-policy.html">Privacy Policy</a> |
+<a href="/terms-and-conditions.html">Terms & Conditions</a>
+</footer>
+
+</body>
+</html>
+`);
+});
+
+//--------------------------------------------
+// LEGAL PAGES
+//--------------------------------------------
+
+app.get("/privacy-policy", (req, res) => {
+	res.sendFile(path.join(__dirname, "public", "privacy-policy.html"));
+});
+
+app.get("/terms", (req, res) => {
+	res.sendFile(path.join(__dirname, "public", "terms-and-conditions.html"));
+});
+//--------------------------------------------
+//	404 HANDLER
+//--------------------------------------------
+
+app.use((req, res) => {
+	res.status(404).json({ error: "Endpoint not found" });
+});
+
+//--------------------------------------------
+//	SERVER START
+//--------------------------------------------
+
+app.listen(PORT, () => {
+	console.log("======================================");
+	console.log("📖 HOLY CHAT SERVER RUNNING");
+	console.log(`🌍 Port: ${PORT}`);
+	console.log("======================================");
+});
