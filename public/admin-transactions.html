@@ -324,6 +324,7 @@
 <th>Sub ID</th>
 <th>Reference</th>
 <th>Xolvis UUID</th>
+<th>Refund</th>
             </tr>
           </thead>
           <tbody id="transactionsBody"></tbody>
@@ -1375,12 +1376,74 @@ rollingReserve.textContent =
 <td class="mono">${escapeHtml(transaction.sub_id || "-")}</td>
 <td class="mono">${escapeHtml(transaction.reference || "-")}</td>
 <td class="mono">${escapeHtml(transaction.xolvis_uuid || "-")}</td>
+<td>${
+  transaction.refund_reference
+    ? escapeHtml(transaction.refund_status || "SUBMITTING") +
+      " (" + escapeHtml(transaction.refund_reference) + ")"
+    : status === "SUCCESSFUL" &&
+      transaction.xolvis_uuid &&
+      transaction.paid_at
+      ? `<button type="button" class="refund-button">Refund full amount</button>`
+      : "-"
+}</td>
         `;
 
         transactionsBody.appendChild(row);
+const refundButton = row.querySelector(".refund-button");
+if (refundButton) {
+  refundButton.addEventListener(
+    "click",
+    () => requestFullRefund(transaction, refundButton)
+  );
+}
       }
     }
 
+async function requestFullRefund(transaction, button) {
+  const message =
+    `Refund £${Number(transaction.amount).toFixed(2)} to ${transaction.email}\n` +
+    `Reference: ${transaction.reference}\n\n` +
+    "This submits a real refund to Xolvis. Continue?";
+
+  if (!window.confirm(message)) return;
+
+  button.disabled = true;
+  button.textContent = "Submitting...";
+
+  try {
+    const response = await fetch(
+      "/api/admin/transactions/" +
+        encodeURIComponent(transaction.reference) +
+        "/refund",
+      {
+        method: "POST",
+        headers: {
+          "x-admin-password": adminPassword,
+          "Content-Type": "application/json"
+        },
+        body: "{}"
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(result.error || "Refund request failed");
+    }
+
+    window.alert(
+      `Refund request sent. Xolvis status: ${result.status}. ` +
+      `Reference: ${result.refundReference}`
+    );
+  } catch (error) {
+    window.alert(
+      error.message +
+      " Check Xolvis before attempting another refund."
+    );
+  } finally {
+    await loadTransactions(false);
+  }
+}
     function csvCell(value) {
       return '"' + String(value ?? "").replace(/"/g, '""') + '"';
     }
