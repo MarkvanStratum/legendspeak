@@ -979,6 +979,22 @@ await pool.query(`
 
 console.log("✅ Xolvis payments table ready");
 
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS xolvis_refunds (
+    id BIGSERIAL PRIMARY KEY,
+    payment_reference TEXT NOT NULL UNIQUE
+      REFERENCES xolvis_payments(reference),
+    refund_reference TEXT NOT NULL UNIQUE,
+    amount NUMERIC(10,2) NOT NULL,
+    currency TEXT NOT NULL DEFAULT 'GBP',
+    status TEXT NOT NULL DEFAULT 'SUBMITTING',
+    refund_uuid TEXT,
+    gateway_response JSONB,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+  );
+`);
+
 // --------------------------------------------
 // PROMO FUNNEL TRACKING
 // --------------------------------------------
@@ -2346,7 +2362,7 @@ if (isBlockedBin) {
 }
 
 const paymentResultUrl =
-  "https://www.legendspeak.net/payment-result?reference=" +
+  "https://legendspeak.net/payment-result?reference=" +
   encodeURIComponent(reference);
 
 await pool.query(
@@ -4156,6 +4172,139 @@ app.get(
   }
 );
 
+app.post(
+  "/api/admin/transactions/:reference/refund",
+  requireAdminPassword,
+  async (req, res) => {
+    const reference = req.params.reference;
+    if (!reference || reference.length > 250) {
+      return res.status(400).json({ error: "Invalid payment reference" });
+    }
+
+    let refundReference;
+
+    try {
+      const paymentResult = await pool.query(
+        `SELECT reference, email, amount, xolvis_uuid, status, paid_at
+         FROM xolvis_payments
+         WHERE reference = $1`,
+        [reference]
+      );
+
+      const payment = paymentResult.rows[0];
+
+      if (
+        !payment ||
+        !payment.paid_at ||
+        !payment.xolvis_uuid ||
+        !["FINISHED", "OK", "SUCCESSFUL"].includes(
+          String(payment.status).toUpperCase()
+        )
+      ) {
+        return res.status(400).json({
+          error: "A completed payment with a Xolvis UUID is required"
+        });
+      }
+
+      refundReference = `refund-${crypto.randomUUID()}`;
+
+      const reserved = await pool.query(
+        `INSERT INTO xolvis_refunds
+           (payment_reference, refund_reference, amount)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (payment_reference) DO NOTHING
+         RETURNING refund_reference`,
+        [reference, refundReference, payment.amount]
+      );
+
+      if (!reserved.rowCount) {
+        return res.status(409).json({
+          error: "A refund request already exists for this payment. Check its status before taking further action."
+        });
+      }
+
+      const gatewayResponse = await fetch(
+        `${process.env.XOLVIS_BASE_URL}/transaction/${process.env.XOLVIS_CONNECTOR_API_KEY}/refund`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: getXolvisAuthHeader(),
+            "Content-Type": "application/json; charset=utf-8",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({
+            merchantTransactionId: refundReference,
+            amount: Number(payment.amount).toFixed(2),
+            currency: "GBP",
+            referenceUuid: payment.xolvis_uuid,
+            callbackUrl: process.env.XOLVIS_CALLBACK_URL
+          })
+        }
+      );
+
+      const raw = await gatewayResponse.text();
+      let result;
+
+      try {
+        result = JSON.parse(raw);
+      } catch {
+        result = { message: raw.slice(0, 1000) };
+      }
+
+      const status =
+        gatewayResponse.ok &&
+result.success === true &&
+!["ERROR", "DECLINED"].includes(
+  String(result.returnType || "").toUpperCase()
+)
+          ? String(result.returnType || "PENDING").toUpperCase()
+          : "REVIEW_REQUIRED";
+
+      await pool.query(
+        `UPDATE xolvis_refunds
+         SET status = $1,
+             refund_uuid = $2,
+             gateway_response = $3,
+             updated_at = NOW()
+         WHERE refund_reference = $4
+           AND status = 'SUBMITTING'`,
+        [status, result.uuid || null, result, refundReference]
+      );
+
+      if (status === "REVIEW_REQUIRED") {
+        console.error(
+          "Xolvis refund needs review:",
+          refundReference,
+          gatewayResponse.status,
+          result
+        );
+        return res.status(502).json({
+          error: "Gateway did not confirm the refund request. Check Xolvis before retrying.",
+          refundReference
+        });
+      }
+
+      return res.json({ success: true, refundReference, status });
+    } catch (error) {
+      console.error("Refund request needs review:", refundReference, error);
+
+      if (refundReference) {
+        await pool.query(
+          `UPDATE xolvis_refunds
+           SET status = 'REVIEW_REQUIRED', updated_at = NOW()
+           WHERE refund_reference = $1 AND status = 'SUBMITTING'`,
+          [refundReference]
+        ).catch(console.error);
+      }
+
+      return res.status(500).json({
+        error: "Refund result uncertain; check Xolvis using the refund reference before retrying.",
+        refundReference
+      });
+    }
+  }
+);
+
 // --------------------------------------------
 // ADMIN TRANSACTIONS API
 // --------------------------------------------
@@ -4190,8 +4339,11 @@ app.get(
       a.created_at
     ) AS created_at,
 
-    p.paid_at,
 p.xolvis_uuid,
+p.paid_at,
+r.refund_reference,
+r.status AS refund_status,
+r.refund_uuid,
 p.affiliate_source,
 p.traffic_source,
 p.sub_id,
@@ -4219,7 +4371,10 @@ COALESCE(
 
   FROM xolvis_payments p
 
-  FULL OUTER JOIN card_payment_attempts a
+LEFT JOIN xolvis_refunds r
+  ON r.payment_reference = p.reference
+
+FULL OUTER JOIN card_payment_attempts a
     ON a.payment_reference = p.reference
 
   ORDER BY COALESCE(
@@ -4831,6 +4986,33 @@ const isSuccessful =
         error: "Missing payment reference"
       });
     }
+
+const refundResult = await pool.query(
+  `SELECT refund_reference
+   FROM xolvis_refunds
+   WHERE refund_reference = $1 OR refund_uuid = $2
+   LIMIT 1`,
+  [reference, uuid]
+);
+
+if (refundResult.rowCount) {
+  await pool.query(
+    `UPDATE xolvis_refunds
+     SET status = $1,
+         refund_uuid = COALESCE($2, refund_uuid),
+         gateway_response = $3,
+         updated_at = NOW()
+     WHERE refund_reference = $4`,
+    [
+      String(status).toUpperCase(),
+      uuid,
+      data,
+      refundResult.rows[0].refund_reference
+    ]
+  );
+
+  return res.json({ ok: true });
+}
 
     const paymentResult = await pool.query(
       `
