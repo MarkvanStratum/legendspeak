@@ -1399,6 +1399,13 @@ const chargebackUpload = multer({
   }
 });
 
+const transactionImportUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  }
+});
+
 const fraudUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -3065,6 +3072,8 @@ app.post(
         const isLegendSpeak =
           normalizedMerchantName ===
             "legendspeak.net" ||
+          normalizedMerchantName ===
+            "legendspeak.ai" ||
           mid ===
             "000106901001029";
 
@@ -4300,6 +4309,235 @@ result.success === true &&
       return res.status(500).json({
         error: "Refund result uncertain; check Xolvis using the refund reference before retrying.",
         refundReference
+      });
+    }
+  }
+);
+
+// --------------------------------------------
+// ADMIN HISTORICAL BANK TRANSACTION IMPORT
+// --------------------------------------------
+
+app.post(
+  "/api/admin/transactions/import",
+  requireAdminPassword,
+  transactionImportUpload.array("files", 50),
+  async (req, res) => {
+    try {
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: "No CSV files uploaded"
+        });
+      }
+
+      let totalRows = 0;
+      let imported = 0;
+      let duplicates = 0;
+      let ignoredOtherMerchant = 0;
+      let ignoredNonPurchase = 0;
+      let ignoredNotCleared = 0;
+      let skipped = 0;
+
+      for (const file of req.files) {
+        const csvText =
+          file.buffer.toString("utf8");
+
+        const rows =
+          parseChargebackCsv(csvText);
+
+        totalRows += rows.length;
+
+        for (const row of rows) {
+          const merchantName =
+            String(
+              row["Merchant Name"] || ""
+            )
+              .trim()
+              .replace(/\s+/g, "")
+              .toLowerCase();
+
+          const isLegendSpeak =
+            merchantName === "legendspeak.net" ||
+            merchantName === "legendspeak.ai";
+
+          if (!isLegendSpeak) {
+            ignoredOtherMerchant++;
+            continue;
+          }
+
+          const transactionType =
+            String(
+              row["Type"] || ""
+            )
+              .trim()
+              .toUpperCase();
+
+          if (transactionType !== "PURCHASE") {
+            ignoredNonPurchase++;
+            continue;
+          }
+
+          const transactionStatus =
+            String(
+              row["Status"] || ""
+            )
+              .trim()
+              .toUpperCase();
+
+          if (transactionStatus !== "CLEARED") {
+            ignoredNotCleared++;
+            continue;
+          }
+
+          const reference =
+            String(
+              row["Merch Tran Ref."] || ""
+            ).trim();
+
+          const transactionDate =
+            parsePaystraxDate(
+              row["Transaction Date"]
+            );
+
+          const amount =
+            Number(
+              row["Amount"]
+            );
+
+          const currency =
+            String(
+              row["Currency"] || ""
+            )
+              .trim()
+              .toUpperCase();
+
+          const maskedCard =
+            String(
+              row["Card No."] || ""
+            ).trim();
+
+          const {
+            cardBin,
+            lastFour
+          } =
+            getChargebackCardParts(
+              maskedCard
+            );
+
+          const acquirerReference =
+            String(
+              row["Acquirer Ref."] || ""
+            ).trim();
+
+          const authCode =
+            String(
+              row["Auth Code"] || ""
+            ).trim();
+
+          if (
+            !reference ||
+            !transactionDate ||
+            !Number.isFinite(amount)
+          ) {
+            skipped++;
+            continue;
+          }
+
+          const historicalTimestamp =
+            transactionDate +
+            "T12:00:00";
+
+          const insertResult =
+            await pool.query(
+              `
+              INSERT INTO xolvis_payments
+              (
+                reference,
+                email,
+                plan,
+                amount,
+                status,
+                xolvis_payload,
+                created_at,
+                paid_at,
+                card_bin,
+                last_four
+              )
+
+              VALUES
+              (
+                $1,
+                $2,
+                $3,
+                $4,
+                'SUCCESSFUL',
+                $5,
+                $6,
+                $6,
+                $7,
+                $8
+              )
+
+              ON CONFLICT (reference)
+              DO NOTHING
+
+              RETURNING id
+              `,
+              [
+                reference,
+                "historical-bank-import@legendspeak.invalid",
+                "historical-bank-import",
+                amount,
+                {
+                  historicalBankImport: true,
+                  merchantName:
+                    merchantName,
+                  currency:
+                    currency || null,
+                  acquirerReference:
+                    acquirerReference || null,
+                  authCode:
+                    authCode || null,
+                  maskedCard:
+                    maskedCard || null
+                },
+                historicalTimestamp,
+                cardBin || null,
+                lastFour || null
+              ]
+            );
+
+          if (insertResult.rows.length > 0) {
+            imported++;
+          } else {
+            duplicates++;
+          }
+        }
+      }
+
+      return res.json({
+        success: true,
+        filesProcessed: req.files.length,
+        totalRows,
+        imported,
+        duplicates,
+        ignoredOtherMerchant,
+        ignoredNonPurchase,
+        ignoredNotCleared,
+        skipped
+      });
+
+    } catch (error) {
+      console.error(
+        "Historical transaction import error:",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        error:
+          "Could not import historical transactions"
       });
     }
   }
