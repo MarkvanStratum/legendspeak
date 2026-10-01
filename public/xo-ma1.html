@@ -170,7 +170,7 @@ sessionStorage.setItem("orig_qs", location.search.replace(/^\?/, ""));
 </div>
 
 <div style="margin-top:14px;font-weight:800">ملخص الطلب</div>
-<div class="order-row"><span>المجموع</span><span>20.00 MAD</span></div>
+<div class="order-row"><span>المجموع</span><span>92.00 MAD</span></div>
 </div>
 
 <div class="widget">
@@ -280,10 +280,10 @@ nextBtn.onclick = async () => {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        plan: "2295", // Usamos el plan 2295 ya configurado en tu backend[cite: 1, 2]
-        step2File: "xo-mx2.html", 
-        currency: "GBP",
-        amount: 22.95,
+        plan: "2695",
+step2File: "xo-mx2.html",
+currency: "GBP",
+amount: 26.95,
         sourcePage: window.location.href,
 
         firstName: firstName.value.trim(),
@@ -301,7 +301,7 @@ nextBtn.onclick = async () => {
 
         ref: affiliateRef,
         originalQueryString: sessionStorage.getItem("orig_qs") || "",
-        successUrl: "https://cudsr.bemobtrcks.com/go/b4571134-6391-4687-953b-61b8360e25a6"
+        successUrl: "https://cudsr.bemobtrcks.com/go/53a38da1-5c63-474d-b01d-121cfc02947b"
       })
     });
 
