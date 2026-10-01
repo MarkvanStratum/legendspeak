@@ -235,6 +235,22 @@
         </div>
         <div class="header-actions">
           <button id="refreshButton" class="primary-button">Refresh</button>
+
+<input
+  id="historicalTransactionFileInput"
+  type="file"
+  accept=".csv,text/csv"
+  multiple
+  style="display:none;"
+>
+
+<button
+  id="importHistoricalTransactionsButton"
+  class="secondary-button"
+>
+  Import Historical Transactions
+</button>
+
 <button id="downloadButton" class="secondary-button">Download CSV</button>
 <button id="downloadInvoicesButton" class="secondary-button">Download All Invoices</button>
 <button id="logoutButton" class="danger-button">Log out</button>
@@ -758,6 +774,9 @@ const CHARGEBACK_UPLOAD_URL = "/api/admin/chargebacks/upload";
 const FRAUD_API_URL = "/api/admin/fraud";
 const FRAUD_UPLOAD_URL = "/api/admin/fraud/upload";
 
+const HISTORICAL_TRANSACTION_IMPORT_URL =
+  "/api/admin/transactions/import";
+
 const INVOICES_DOWNLOAD_URL = "/api/admin/receipts/download-all";
     let adminPassword = "";
     let allTransactions = [];
@@ -773,6 +792,13 @@ let refreshTimer = null;
     const loginButton = byId("loginButton");
     const loginError = byId("loginError");
     const refreshButton = byId("refreshButton");
+
+const historicalTransactionFileInput =
+  byId("historicalTransactionFileInput");
+
+const importHistoricalTransactionsButton =
+  byId("importHistoricalTransactionsButton");
+
 const downloadButton = byId("downloadButton");
 const downloadInvoicesButton = byId("downloadInvoicesButton");
 const logoutButton = byId("logoutButton");
@@ -1442,6 +1468,143 @@ async function requestFullRefund(transaction, button) {
     );
   } finally {
     await loadTransactions(false);
+  }
+}
+
+async function importHistoricalTransactions() {
+  const files =
+    Array.from(
+      historicalTransactionFileInput.files || []
+    );
+
+  if (files.length === 0) {
+    window.alert(
+      "Please select at least one bank CSV file."
+    );
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      "Import " +
+      files.length +
+      " historical bank CSV file(s)?\n\n" +
+      "Only cleared LegendSpeak.net and LegendSpeak.ai purchases will be imported. " +
+      "SpeakToHeaven transactions, refunds and duplicates will be ignored."
+    );
+
+  if (!confirmed) {
+    historicalTransactionFileInput.value = "";
+    return;
+  }
+
+  const formData =
+    new FormData();
+
+  for (const file of files) {
+    formData.append(
+      "files",
+      file
+    );
+  }
+
+  importHistoricalTransactionsButton.disabled =
+    true;
+
+  importHistoricalTransactionsButton.textContent =
+    "Importing...";
+
+  statusLine.textContent =
+    "Importing historical bank transactions...";
+
+  try {
+    const response =
+      await fetch(
+        HISTORICAL_TRANSACTION_IMPORT_URL,
+        {
+          method: "POST",
+
+          headers: {
+            "x-admin-password":
+              adminPassword
+          },
+
+          body: formData
+        }
+      );
+
+    let data = {};
+
+    try {
+      data =
+        await response.json();
+    } catch {}
+
+    if (
+      !response.ok ||
+      data.success !== true
+    ) {
+      throw new Error(
+        data.error ||
+        "Historical transaction import failed"
+      );
+    }
+
+    const message =
+      "Historical import complete.\n\n" +
+      "Files processed: " +
+      data.filesProcessed +
+      "\n" +
+      "Rows found: " +
+      data.totalRows +
+      "\n" +
+      "New LegendSpeak sales imported: " +
+      data.imported +
+      "\n" +
+      "Duplicates already in database: " +
+      data.duplicates +
+      "\n" +
+      "Other merchants ignored: " +
+      data.ignoredOtherMerchant +
+      "\n" +
+      "Refunds/non-purchases ignored: " +
+      data.ignoredNonPurchase +
+      "\n" +
+      "Non-cleared transactions ignored: " +
+      data.ignoredNotCleared +
+      "\n" +
+      "Invalid rows skipped: " +
+      data.skipped;
+
+    window.alert(message);
+
+    historicalTransactionFileInput.value =
+      "";
+
+    await loadTransactions(false);
+
+    statusLine.textContent =
+      "Historical import complete: " +
+      data.imported +
+      " new sales imported.";
+
+  } catch (error) {
+    console.error(error);
+
+    window.alert(
+      "Import failed: " +
+      error.message
+    );
+
+    statusLine.textContent =
+      "Historical import failed.";
+
+  } finally {
+    importHistoricalTransactionsButton.disabled =
+      false;
+
+    importHistoricalTransactionsButton.textContent =
+      "Import Historical Transactions";
   }
 }
     function csvCell(value) {
@@ -3010,10 +3173,43 @@ applyFilters();
       if (event.key === "Enter") loginButton.click();
     });
 
-    refreshButton.addEventListener("click", () => loadTransactions(false));
-downloadButton.addEventListener("click", downloadCsv);
-downloadInvoicesButton.addEventListener("click", downloadAllInvoices);
-logoutButton.addEventListener("click", logout);
+    refreshButton.addEventListener(
+  "click",
+  () => loadTransactions(false)
+);
+
+importHistoricalTransactionsButton.addEventListener(
+  "click",
+  () => {
+    historicalTransactionFileInput.click();
+  }
+);
+
+historicalTransactionFileInput.addEventListener(
+  "change",
+  () => {
+    if (
+      historicalTransactionFileInput.files.length > 0
+    ) {
+      importHistoricalTransactions();
+    }
+  }
+);
+
+downloadButton.addEventListener(
+  "click",
+  downloadCsv
+);
+
+downloadInvoicesButton.addEventListener(
+  "click",
+  downloadAllInvoices
+);
+
+logoutButton.addEventListener(
+  "click",
+  logout
+);
 clearFiltersButton.addEventListener("click", clearFilters);
     searchInput.addEventListener("input", applyFilters);
     statusFilter.addEventListener("change", applyFilters);
